@@ -60,10 +60,12 @@ Collection of Bash installers that guide you through setting up self-hosted serv
 Currently available:
 - **[Authentik](installer-scripts/authentik/)** — Identity provider / SSO via Docker Compose. Interactive setup with SMTP config, secure password generation, and credential storage.
 - **[BunkerWeb](installer-scripts/bunkerweb/)** — BunkerWeb WAF All-in-One via Docker Compose. Includes UFW firewall config, systemd service, and setup wizard instructions.
+- **[Docker CE](installer-scripts/docker-ce/)** — Docker CE for Ubuntu LTS. Official repo, hardened daemon.json, Compose v2 plugin.
 
 ```bash
 sudo bash installer-scripts/authentik/install-authentik.sh
 sudo bash installer-scripts/bunkerweb/install-bunkerweb.sh
+sudo bash installer-scripts/docker-ce/install-docker.sh
 ```
 
 ---
@@ -87,8 +89,11 @@ general-scripts/
 │   ├── authentik/
 │   │   ├── install-authentik.sh
 │   │   └── README.md
-│   └── bunkerweb/
-│       ├── install-bunkerweb.sh
+│   ├── bunkerweb/
+│   │   ├── install-bunkerweb.sh
+│   │   └── README.md
+│   └── docker-ce/
+│       ├── install-docker.sh
 │       └── README.md
 └── ...                             # More scripts coming soon
 ```
