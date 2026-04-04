@@ -61,11 +61,13 @@ Currently available:
 - **[Authentik](installer-scripts/authentik/)** — Identity provider / SSO via Docker Compose. Interactive setup with SMTP config, secure password generation, and credential storage.
 - **[BunkerWeb](installer-scripts/bunkerweb/)** — BunkerWeb WAF All-in-One via Docker Compose. Includes UFW firewall config, systemd service, and setup wizard instructions.
 - **[Docker CE](installer-scripts/docker-ce/)** — Docker CE for Ubuntu LTS. Official repo, hardened daemon.json, Compose v2 plugin.
+- **[Ubuntu Hardening](installer-scripts/ubuntu-hardening/)** — Full server hardening (SSH, Fail2Ban, UFW, sysctl, NTP, etc.). Auto-detects LXC/Cloud/Proxmox.
 
 ```bash
 sudo bash installer-scripts/authentik/install-authentik.sh
 sudo bash installer-scripts/bunkerweb/install-bunkerweb.sh
 sudo bash installer-scripts/docker-ce/install-docker.sh
+sudo bash installer-scripts/ubuntu-hardening/ubuntu_hardening.sh
 ```
 
 ---
@@ -92,8 +94,11 @@ general-scripts/
 │   ├── bunkerweb/
 │   │   ├── install-bunkerweb.sh
 │   │   └── README.md
-│   └── docker-ce/
-│       ├── install-docker.sh
+│   ├── docker-ce/
+│   │   ├── install-docker.sh
+│   │   └── README.md
+│   └── ubuntu-hardening/
+│       ├── ubuntu_hardening.sh
 │       └── README.md
 └── ...                             # More scripts coming soon
 ```
