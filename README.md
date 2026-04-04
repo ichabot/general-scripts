@@ -139,6 +139,22 @@ general-scripts/
         └── Outlook-AutoConfig.prf
 ```
 
+## ⚠️ Disclaimer
+
+This project was developed with AI assistance ("vibe coding") and uses third-party open-source dependencies that have **not been independently audited**. The software is provided "as is" under the MIT License, without warranty of any kind.
+
+**Please note:**
+- These scripts modify system configurations, install packages, and change security settings — **always review before running**
+- Use the `--check` / `--dry-run` flags where available to preview changes
+- The installer scripts (hardening, Docker, Authentik, etc.) are designed for **fresh server setups** — running on existing production systems may cause conflicts
+- PowerShell scripts modify Windows Registry and Outlook profiles — **back up before use**
+- External dependencies and APIs (Microsoft 365 Endpoints, Docker repos, etc.) are maintained by their respective projects — changes on their end may break functionality
+- This is a personal/MSP toolbox, not certified enterprise software
+
+> **Short version:** Read the scripts before running them, test on non-production systems first, keep backups. Don't blindly run hardening scripts on live servers.
+
+---
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
