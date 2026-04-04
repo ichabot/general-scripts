@@ -7,6 +7,7 @@ Collection of interactive installation scripts for self-hosted services.
 | Script | Description |
 |--------|-------------|
 | [authentik](authentik/) | Authentik identity provider (Docker Compose) |
+| [bunkerweb](bunkerweb/) | BunkerWeb WAF All-in-One (Docker Compose + UFW + systemd) |
 
 ## General Notes
 
