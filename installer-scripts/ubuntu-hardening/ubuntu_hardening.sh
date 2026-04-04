@@ -2,10 +2,11 @@
 # =============================================================================
 # Ubuntu Server Hardening Script
 # MSP Setup - Patrick
-# Version 1.2 - LXC/VM/Cloud kompatibel (Proxmox, Hetzner, etc.)
+# Version 1.3 - LXC/VM/Cloud kompatibel (Proxmox, Hetzner, etc.)
 # =============================================================================
 # Getestet auf: Ubuntu 22.04 / 24.04 LTS (Proxmox VM/LXC, Hetzner Cloud)
 # Ausfuehren als root: sudo bash ubuntu_hardening.sh
+# Dry-Run Modus:       sudo bash ubuntu_hardening.sh --check
 # =============================================================================
 
 set -euo pipefail
@@ -16,6 +17,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 log()     { echo -e "${GREEN}[OK]${NC} $1"; }
@@ -28,6 +30,27 @@ section() { echo -e "\n${BLUE}========================================${NC}"; ec
 # --- Root-Check ---
 if [[ $EUID -ne 0 ]]; then
    error "Bitte als root ausfuehren: sudo bash $0"
+fi
+
+# =============================================================================
+# LOGGING - Alles in Datei und Terminal ausgeben
+# =============================================================================
+LOG_FILE="/var/log/hardening_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+info "Log-Datei: $LOG_FILE"
+
+# =============================================================================
+# DRY-RUN MODUS
+# =============================================================================
+DRY_RUN=false
+if [[ "${1:-}" == "--check" || "${1:-}" == "--dry-run" ]]; then
+    DRY_RUN=true
+    echo -e "${YELLOW}${BOLD}"
+    echo "============================================================"
+    echo "  DRY-RUN MODUS - Es werden KEINE Aenderungen vorgenommen!"
+    echo "  Das Script zeigt nur was es tun WUERDE."
+    echo "============================================================"
+    echo -e "${NC}"
 fi
 
 # =============================================================================
@@ -66,7 +89,7 @@ if ! $IS_LXC; then
             *"Hetzner"*|*"hc-host"*) IS_CLOUD_VM=true ;;
         esac
     fi
-    # Hetzner cloud-init marker
+    # cloud-init marker (Hetzner, AWS, GCP, etc.)
     if [[ -f /etc/cloud/cloud.cfg ]] && ! $IS_CLOUD_VM; then
         IS_CLOUD_VM=true
     fi
@@ -96,7 +119,6 @@ SSH_PORT=22                          # SSH Port aendern wenn gewuenscht z.B. 222
 SSH_ALLOW_USERS=""                   # Leer = alle User erlaubt, z.B. "sysadmin admin"
                                      # ACHTUNG: Nur setzen wenn der User existiert!
                                      # Auf Hetzner-VMs ist nur "root" vorhanden!
-NTP_SERVERS="de.pool.ntp.org europe.pool.ntp.org"
 SWAPPINESS=10                        # Standard Ubuntu = 60, fuer Server besser 10
 SWAP_SIZE="2G"                       # Swap Groesse | 0 = kein Swap
                                      # 4GB  RAM  -> "4G"  (gleich wie RAM)
@@ -104,6 +126,18 @@ SWAP_SIZE="2G"                       # Swap Groesse | 0 = kein Swap
                                      # 16GB RAM  -> "4G"  (fixer Wert genuegt)
                                      # 32GB RAM  -> "4G"  (mehr als 4G selten sinnvoll)
                                      # In LXC: Swap wird vom Host verwaltet -> wird ignoriert
+
+# IPv6 Konfiguration
+DISABLE_IPV6=true                    # true  = IPv6 komplett deaktivieren (sysctl)
+                                     # false = IPv6 aktiv lassen, nur haerten
+                                     # Hinweis: Hetzner/Cloud-Provider vergeben IPv6 -
+                                     # bei false bleibt IPv6 nutzbar, wird aber per
+                                     # sysctl gehaertet (keine Redirects, kein Source Routing)
+
+# Automatischer Reboot nach Kernel-Security-Updates
+AUTO_REBOOT=false                    # true  = automatisch um AUTO_REBOOT_TIME rebooten
+                                     # false = kein automatischer Reboot (manuell noetig)
+AUTO_REBOOT_TIME="03:30"            # Uhrzeit fuer automatischen Reboot (nur wenn AUTO_REBOOT=true)
 
 # Zusaetzliche UFW Ports (optional) - Format: "PORT/PROTOKOLL:BESCHREIBUNG"
 # Leer lassen wenn nicht benoetigt
@@ -120,34 +154,45 @@ EXTRA_PORTS=(
 # =============================================================================
 section "1. System Update"
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get upgrade -y -qq
-log "System aktualisiert"
+if $DRY_RUN; then
+    info "[DRY-RUN] apt-get update && apt-get upgrade"
+else
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq && apt-get upgrade -y -qq
+    log "System aktualisiert"
+fi
 
 # =============================================================================
 # 2. ZEITZONE & LOCALE
 # =============================================================================
 section "2. Zeitzone & Locale"
 
-timedatectl set-timezone "$TIMEZONE"
-log "Zeitzone gesetzt: $TIMEZONE"
+if $DRY_RUN; then
+    info "[DRY-RUN] Zeitzone: $TIMEZONE | Locale: $LOCALE"
+else
+    timedatectl set-timezone "$TIMEZONE"
+    log "Zeitzone gesetzt: $TIMEZONE"
 
-apt-get install -y -qq locales
-locale-gen "$LOCALE"
-update-locale LANG="$LOCALE" LC_ALL="$LOCALE"
-log "Locale gesetzt: $LOCALE"
+    apt-get install -y -qq locales
+    locale-gen "$LOCALE"
+    update-locale LANG="$LOCALE" LC_ALL="$LOCALE"
+    log "Locale gesetzt: $LOCALE"
+fi
 
 # =============================================================================
 # 3. CHRONY (NTP)
 # =============================================================================
 section "3. Chrony NTP einrichten"
 
-# systemd-timesyncd deaktivieren
-systemctl disable systemd-timesyncd --now 2>/dev/null || true
+if $DRY_RUN; then
+    info "[DRY-RUN] Chrony NTP installieren (de.pool.ntp.org, europe.pool.ntp.org)"
+else
+    # systemd-timesyncd deaktivieren
+    systemctl disable systemd-timesyncd --now 2>/dev/null || true
 
-apt-get install -y -qq chrony
+    apt-get install -y -qq chrony
 
-cat > /etc/chrony/chrony.conf << EOF
+    cat > /etc/chrony/chrony.conf << EOF
 # MSP Hardening - Chrony Konfiguration
 # Generiert: $(date)
 
@@ -174,14 +219,15 @@ rtcsync
 logdir /var/log/chrony
 EOF
 
-systemctl enable chrony --now
-log "Chrony installiert und konfiguriert"
+    systemctl enable chrony --now
+    log "Chrony installiert und konfiguriert"
 
-sleep 2
-if chronyc tracking &>/dev/null; then
-    log "Chrony laeuft und synchronisiert"
-else
-    warn "Chrony laeuft, aber Synchronisation noch ausstehend (normal beim ersten Start)"
+    sleep 2
+    if chronyc tracking &>/dev/null; then
+        log "Chrony laeuft und synchronisiert"
+    else
+        warn "Chrony laeuft, aber Synchronisation noch ausstehend (normal beim ersten Start)"
+    fi
 fi
 
 # =============================================================================
@@ -189,7 +235,14 @@ fi
 # =============================================================================
 section "4. Swap einrichten"
 
-if $IS_LXC; then
+if $DRY_RUN; then
+    if $IS_LXC; then
+        info "[DRY-RUN] LXC: Swap wird uebersprungen"
+    else
+        info "[DRY-RUN] Swappiness=$SWAPPINESS, Swap-Datei=$SWAP_SIZE"
+    fi
+    SWAP_INFO="DRY-RUN"
+elif $IS_LXC; then
     skip "LXC: Swappiness wird vom Proxmox-Host verwaltet - wird uebersprungen"
     skip "LXC: Swap-Einrichtung wird uebersprungen (Host zustaendig)"
     SWAP_INFO="LXC - vom Proxmox-Host verwaltet"
@@ -208,11 +261,14 @@ else
         info "Kein Swap gewuenscht (SWAP_SIZE=0)"
         SWAP_INFO="Nicht eingerichtet"
     else
-        fallocate -l "$SWAP_SIZE" /swapfile
+        # fallocate mit dd-Fallback (fuer btrfs/ZFS Kompatibilitaet)
+        fallocate -l "$SWAP_SIZE" /swapfile 2>/dev/null \
+            || dd if=/dev/zero of=/swapfile bs=1M count=$((${SWAP_SIZE%G} * 1024)) status=none
         chmod 600 /swapfile
         mkswap /swapfile -q
         swapon /swapfile
-        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        # Nur eintragen wenn noch nicht in fstab (Idempotenz bei Re-Run)
+        grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
         log "Swapfile neu angelegt: $SWAP_SIZE"
         SWAP_INFO="Neu angelegt: $SWAP_SIZE"
     fi
@@ -223,10 +279,16 @@ fi
 # =============================================================================
 section "5. SSH Hardening"
 
-cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%Y%m%d)
-log "SSH Konfig Backup erstellt"
+if $DRY_RUN; then
+    info "[DRY-RUN] SSH Hardening: Port=$SSH_PORT, PermitRootLogin=no, MaxAuthTries=3, LoginGraceTime=60"
+    if [[ -n "$SSH_ALLOW_USERS" ]]; then
+        info "[DRY-RUN] AllowUsers: $SSH_ALLOW_USERS"
+    fi
+else
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%Y%m%d)
+    log "SSH Konfig Backup erstellt"
 
-cat > /etc/ssh/sshd_config.d/99-hardening.conf << EOF
+    cat > /etc/ssh/sshd_config.d/99-hardening.conf << EOF
 # MSP SSH Hardening
 # Generiert: $(date)
 
@@ -254,8 +316,8 @@ MaxAuthTries 3
 ClientAliveInterval 300
 ClientAliveCountMax 3
 
-# Login Grace Time
-LoginGraceTime 30
+# Login Grace Time (60s fuer langsame Verbindungen / 2FA)
+LoginGraceTime 60
 
 # TCP Forwarding einschraenken
 AllowTcpForwarding no
@@ -268,7 +330,7 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 Banner /etc/ssh/banner
 EOF
 
-cat > /etc/ssh/banner << 'EOF'
+    cat > /etc/ssh/banner << 'EOF'
 ***************************************************************************
                     AUTHORIZED ACCESS ONLY
     Unauthorized access to this system is prohibited and will be
@@ -277,65 +339,69 @@ cat > /etc/ssh/banner << 'EOF'
 ***************************************************************************
 EOF
 
-# SSH_ALLOW_USERS: Nur setzen wenn konfiguriert UND alle User existieren
-if [[ -n "$SSH_ALLOW_USERS" ]]; then
-    ALL_USERS_EXIST=true
-    for username in $SSH_ALLOW_USERS; do
-        if ! id "$username" &>/dev/null; then
-            warn "SSH AllowUsers: User '$username' existiert nicht auf diesem System!"
-            ALL_USERS_EXIST=false
+    # SSH_ALLOW_USERS: Nur setzen wenn konfiguriert UND alle User existieren
+    if [[ -n "$SSH_ALLOW_USERS" ]]; then
+        ALL_USERS_EXIST=true
+        for username in $SSH_ALLOW_USERS; do
+            if ! id "$username" &>/dev/null; then
+                warn "SSH AllowUsers: User '$username' existiert nicht auf diesem System!"
+                ALL_USERS_EXIST=false
+            fi
+        done
+
+        if $ALL_USERS_EXIST; then
+            echo "AllowUsers $SSH_ALLOW_USERS" >> /etc/ssh/sshd_config.d/99-hardening.conf
+            log "SSH User-Einschraenkung gesetzt: $SSH_ALLOW_USERS"
+        else
+            warn "SSH AllowUsers wird NICHT gesetzt - fehlende User wuerden Zugang blockieren!"
+            warn "Erst User anlegen, dann manuell in /etc/ssh/sshd_config.d/99-hardening.conf eintragen."
         fi
-    done
-
-    if $ALL_USERS_EXIST; then
-        echo "AllowUsers $SSH_ALLOW_USERS" >> /etc/ssh/sshd_config.d/99-hardening.conf
-        log "SSH User-Einschraenkung gesetzt: $SSH_ALLOW_USERS"
-    else
-        warn "SSH AllowUsers wird NICHT gesetzt - fehlende User wuerden Zugang blockieren!"
-        warn "Erst User anlegen, dann manuell in /etc/ssh/sshd_config.d/99-hardening.conf eintragen."
     fi
-fi
 
-# PermitRootLogin: Auf Cloud-VMs wo nur root existiert, nicht sofort deaktivieren
-if $IS_CLOUD_VM; then
-    NON_ROOT_USERS=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd)
-    if [[ -z "$NON_ROOT_USERS" ]]; then
-        # Kein normaler User vorhanden -> Root-Login erlaubt lassen (nur mit Key)
-        sed -i 's/^PermitRootLogin no$/PermitRootLogin prohibit-password/' \
-            /etc/ssh/sshd_config.d/99-hardening.conf
-        warn "Cloud-VM: Kein regulaerer User vorhanden!"
-        warn "Root-Login bleibt erlaubt (nur Key-Auth, kein Passwort)."
-        warn "Empfehlung: User anlegen, dann 'PermitRootLogin no' setzen."
+    # PermitRootLogin: Auf Cloud-VMs wo nur root existiert, nicht sofort deaktivieren
+    if $IS_CLOUD_VM; then
+        NON_ROOT_USERS=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd)
+        if [[ -z "$NON_ROOT_USERS" ]]; then
+            # Kein normaler User vorhanden -> Root-Login erlaubt lassen (nur mit Key)
+            sed -i 's/^PermitRootLogin no$/PermitRootLogin prohibit-password/' \
+                /etc/ssh/sshd_config.d/99-hardening.conf
+            warn "Cloud-VM: Kein regulaerer User vorhanden!"
+            warn "Root-Login bleibt erlaubt (nur Key-Auth, kein Passwort)."
+            warn "Empfehlung: User anlegen, dann 'PermitRootLogin no' setzen."
+        fi
     fi
-fi
 
-systemctl restart ssh
-log "SSH gehaertet (Port: $SSH_PORT)"
-warn "Passwort-Auth noch aktiv - erst deaktivieren wenn SSH-Key hinterlegt!"
+    systemctl restart ssh
+    log "SSH gehaertet (Port: $SSH_PORT)"
+    warn "Passwort-Auth noch aktiv - erst deaktivieren wenn SSH-Key hinterlegt!"
+fi
 
 # =============================================================================
 # 6. FAIL2BAN
 # =============================================================================
 section "6. Fail2Ban einrichten"
 
-apt-get install -y -qq fail2ban
+if $DRY_RUN; then
+    info "[DRY-RUN] Fail2Ban installieren (SSH maxretry=3, bantime=86400)"
+else
+    apt-get install -y -qq fail2ban
 
-# Pruefen ob sshd-ddos Filter existiert (nicht in allen Versionen vorhanden)
-SSHD_DDOS_BLOCK=""
-if [[ -f /etc/fail2ban/filter.d/sshd-ddos.conf ]]; then
-    SSHD_DDOS_BLOCK="
+    # Pruefen ob sshd-ddos Filter existiert (nicht in allen Versionen vorhanden)
+    SSHD_DDOS_BLOCK=""
+    if [[ -f /etc/fail2ban/filter.d/sshd-ddos.conf ]]; then
+        SSHD_DDOS_BLOCK="
 [sshd-ddos]
 enabled  = true
 port     = $SSH_PORT
 filter   = sshd-ddos
 maxretry = 10
 bantime  = 3600"
-    log "sshd-ddos Filter gefunden - wird aktiviert"
-else
-    info "sshd-ddos Filter nicht vorhanden (normal bei neueren Versionen) - wird uebersprungen"
-fi
+        log "sshd-ddos Filter gefunden - wird aktiviert"
+    else
+        info "sshd-ddos Filter nicht vorhanden (normal bei neueren Versionen) - wird uebersprungen"
+    fi
 
-cat > /etc/fail2ban/jail.local << EOF
+    cat > /etc/fail2ban/jail.local << EOF
 [DEFAULT]
 # Basis-Einstellungen
 bantime  = 3600
@@ -355,75 +421,120 @@ bantime  = 86400
 ${SSHD_DDOS_BLOCK}
 EOF
 
-systemctl enable fail2ban --now
-systemctl restart fail2ban
-log "Fail2Ban installiert und konfiguriert"
+    systemctl enable fail2ban --now
+    systemctl restart fail2ban
+    log "Fail2Ban installiert und konfiguriert"
+fi
 
 # =============================================================================
 # 7. UFW FIREWALL
 # =============================================================================
 section "7. UFW Basis-Firewall"
 
-apt-get install -y -qq ufw
-
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow "$SSH_PORT"/tcp comment "SSH"
-
-if [[ ${#EXTRA_PORTS[@]} -gt 0 ]]; then
+if $DRY_RUN; then
+    info "[DRY-RUN] UFW: deny incoming, allow outgoing, allow SSH $SSH_PORT/tcp"
     for entry in "${EXTRA_PORTS[@]}"; do
         PORT=$(echo "$entry" | cut -d: -f1)
         DESC=$(echo "$entry" | cut -d: -f2)
-        ufw allow "$PORT" comment "$DESC"
-        log "UFW Port freigegeben: $PORT ($DESC)"
+        info "[DRY-RUN] UFW allow $PORT ($DESC)"
     done
-fi
+else
+    apt-get install -y -qq ufw
 
-echo "y" | ufw enable
-log "UFW aktiviert - SSH Port $SSH_PORT eingehend erlaubt"
+    ufw default deny incoming
+    ufw default allow outgoing
+
+    # Nur hinzufuegen wenn Regel noch nicht existiert (Idempotenz bei Re-Run)
+    ufw status | grep -q "$SSH_PORT/tcp.*ALLOW" || ufw allow "$SSH_PORT"/tcp comment "SSH"
+
+    if [[ ${#EXTRA_PORTS[@]} -gt 0 ]]; then
+        for entry in "${EXTRA_PORTS[@]}"; do
+            PORT=$(echo "$entry" | cut -d: -f1)
+            DESC=$(echo "$entry" | cut -d: -f2)
+            if ufw status | grep -q "${PORT}.*ALLOW"; then
+                skip "UFW Regel existiert bereits: $PORT ($DESC)"
+            else
+                ufw allow "$PORT" comment "$DESC"
+                log "UFW Port freigegeben: $PORT ($DESC)"
+            fi
+        done
+    fi
+
+    # UFW aktivieren oder neu laden (Idempotenz bei Re-Run)
+    if ufw status | grep -q "Status: active"; then
+        ufw reload >/dev/null
+        log "UFW neu geladen"
+    else
+        echo "y" | ufw enable
+    fi
+    log "UFW aktiviert - SSH Port $SSH_PORT eingehend erlaubt"
+fi
 
 # =============================================================================
 # 8. UNATTENDED UPGRADES
 # =============================================================================
 section "8. Automatische Sicherheitsupdates"
 
-apt-get install -y -qq unattended-upgrades apt-listchanges
+if $DRY_RUN; then
+    info "[DRY-RUN] Unattended-Upgrades installieren (Security-Updates, Auto-Reboot=$AUTO_REBOOT)"
+else
+    apt-get install -y -qq unattended-upgrades apt-listchanges
 
-cat > /etc/apt/apt.conf.d/50unattended-upgrades << 'EOF'
+    # AUTO_REBOOT Variable fuer apt-Konfiguration aufbereiten
+    if [[ "$AUTO_REBOOT" == "true" ]]; then
+        APT_AUTO_REBOOT="true"
+    else
+        APT_AUTO_REBOOT="false"
+    fi
+
+    cat > /etc/apt/apt.conf.d/50unattended-upgrades << EOF
 Unattended-Upgrade::Allowed-Origins {
-    "${distro_id}:${distro_codename}";
-    "${distro_id}:${distro_codename}-security";
-    "${distro_id}ESMApps:${distro_codename}-apps-security";
-    "${distro_id}ESM:${distro_codename}-infra-security";
+    "\${distro_id}:\${distro_codename}";
+    "\${distro_id}:\${distro_codename}-security";
+    "\${distro_id}ESMApps:\${distro_codename}-apps-security";
+    "\${distro_id}ESM:\${distro_codename}-infra-security";
 };
 
 Unattended-Upgrade::Package-Blacklist {
 };
 
-// Automatischer Reboot bei Kernel-Updates (nachts 3:30 Uhr)
-Unattended-Upgrade::Automatic-Reboot "false";
-Unattended-Upgrade::Automatic-Reboot-Time "03:30";
+// Automatischer Reboot bei Kernel-Updates
+Unattended-Upgrade::Automatic-Reboot "${APT_AUTO_REBOOT}";
+Unattended-Upgrade::Automatic-Reboot-Time "${AUTO_REBOOT_TIME}";
 
 // Logging
 Unattended-Upgrade::SyslogEnable "true";
 EOF
 
-cat > /etc/apt/apt.conf.d/20auto-upgrades << 'EOF'
+    cat > /etc/apt/apt.conf.d/20auto-upgrades << 'EOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Download-Upgradeable-Packages "1";
 APT::Periodic::AutocleanInterval "7";
 APT::Periodic::Unattended-Upgrade "1";
 EOF
 
-systemctl enable unattended-upgrades --now
-log "Automatische Sicherheitsupdates aktiviert"
+    systemctl enable unattended-upgrades --now
+    log "Automatische Sicherheitsupdates aktiviert"
+    if [[ "$AUTO_REBOOT" == "true" ]]; then
+        log "Automatischer Reboot aktiviert um $AUTO_REBOOT_TIME bei Kernel-Updates"
+    else
+        info "Automatischer Reboot deaktiviert - Kernel-Updates erfordern manuellen Reboot"
+    fi
+fi
 
 # =============================================================================
 # 9. KERNEL / SYSCTL HARDENING
 # =============================================================================
 section "9. Kernel / Sysctl Hardening"
 
-if $IS_LXC; then
+if $DRY_RUN; then
+    info "[DRY-RUN] Sysctl Hardening (SYN-Flood, Spoofing, ICMP)"
+    if $DISABLE_IPV6; then
+        info "[DRY-RUN] IPv6 wird deaktiviert"
+    else
+        info "[DRY-RUN] IPv6 bleibt aktiv (nur Hardening)"
+    fi
+elif $IS_LXC; then
     skip "LXC: Kernel-Parameter werden vom Proxmox-Host verwaltet"
     skip "LXC: sysctl Hardening wird uebersprungen (kein Schreibzugriff auf Kernel-Parameter)"
     info "Tipp: sysctl-Haertung auf dem Proxmox-Host in /etc/sysctl.d/ konfigurieren"
@@ -439,7 +550,6 @@ net.ipv4.conf.default.rp_filter = 1
 # ICMP Redirects ignorieren
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.default.accept_redirects = 0
-net.ipv6.conf.all.accept_redirects = 0
 
 # Source Routing deaktivieren
 net.ipv4.conf.all.accept_source_route = 0
@@ -456,15 +566,35 @@ net.ipv4.icmp_echo_ignore_broadcasts = 1
 # Bogus ICMP Fehler ignorieren
 net.ipv4.icmp_ignore_bogus_error_responses = 1
 
-# IPv6 deaktivieren
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
-
 # Swappiness
 vm.swappiness = 10
 EOF
 
     sysctl -p /etc/sysctl.d/99-hardening.conf -q
+
+    # IPv6: deaktivieren oder haerten (je nach Konfiguration)
+    if $DISABLE_IPV6; then
+        cat > /etc/sysctl.d/99-ipv6.conf << 'EOF'
+# IPv6 komplett deaktiviert
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+EOF
+        sysctl -p /etc/sysctl.d/99-ipv6.conf -q
+        log "IPv6 deaktiviert"
+    else
+        cat > /etc/sysctl.d/99-ipv6.conf << 'EOF'
+# IPv6 Hardening (IPv6 bleibt aktiv)
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.default.accept_ra = 0
+EOF
+        sysctl -p /etc/sysctl.d/99-ipv6.conf -q
+        log "IPv6 gehaertet (bleibt aktiv)"
+    fi
+
     log "Kernel-Parameter gehaertet"
 fi
 
@@ -473,9 +603,12 @@ fi
 # =============================================================================
 section "10. Logrotate"
 
-apt-get install -y -qq logrotate
+if $DRY_RUN; then
+    info "[DRY-RUN] Logrotate konfigurieren (14 Tage Daily)"
+else
+    apt-get install -y -qq logrotate
 
-cat > /etc/logrotate.d/msp-server << 'EOF'
+    cat > /etc/logrotate.d/msp-server << 'EOF'
 # MSP Server - Logrotate Konfiguration
 /var/log/syslog
 /var/log/auth.log
@@ -503,33 +636,38 @@ cat > /etc/logrotate.d/msp-server << 'EOF'
 }
 EOF
 
-systemctl enable logrotate.timer --now 2>/dev/null || true
-log "Logrotate konfiguriert (14 Tage Daily, komprimiert)"
+    systemctl enable logrotate.timer --now 2>/dev/null || true
+    log "Logrotate konfiguriert (14 Tage Daily, komprimiert)"
+fi
 
 # =============================================================================
 # 11. NUTZLOSE DIENSTE DEAKTIVIEREN
 # =============================================================================
 section "11. Unnoetige Dienste deaktivieren"
 
-SERVICES_TO_DISABLE=(
-    "bluetooth"
-    "cups"
-    "avahi-daemon"
-)
+if $DRY_RUN; then
+    info "[DRY-RUN] Deaktiviere: bluetooth, cups, avahi-daemon (falls vorhanden)"
+else
+    SERVICES_TO_DISABLE=(
+        "bluetooth"
+        "cups"
+        "avahi-daemon"
+    )
 
-DISABLED_COUNT=0
-for service in "${SERVICES_TO_DISABLE[@]}"; do
-    if systemctl list-unit-files "${service}.service" 2>/dev/null | grep -q "$service"; then
-        systemctl disable "$service" --now 2>/dev/null || true
-        log "Deaktiviert: $service"
-        ((DISABLED_COUNT++)) || true
-    else
-        skip "$service nicht installiert"
+    DISABLED_COUNT=0
+    for service in "${SERVICES_TO_DISABLE[@]}"; do
+        if systemctl list-unit-files "${service}.service" 2>/dev/null | grep -q "$service"; then
+            systemctl disable "$service" --now 2>/dev/null || true
+            log "Deaktiviert: $service"
+            ((DISABLED_COUNT++)) || true
+        else
+            skip "$service nicht installiert"
+        fi
+    done
+
+    if [[ $DISABLED_COUNT -eq 0 ]]; then
+        info "Keine unnoetigten Dienste gefunden (minimales Image)"
     fi
-done
-
-if [[ $DISABLED_COUNT -eq 0 ]]; then
-    info "Keine unnoetigten Dienste gefunden (minimales Image)"
 fi
 
 # =============================================================================
@@ -537,15 +675,25 @@ fi
 # =============================================================================
 section "12. Basis-Tools installieren"
 
-apt-get install -y -qq curl wget bpytop tmux
-log "Tools installiert: curl, wget, bpytop, tmux"
+if $DRY_RUN; then
+    info "[DRY-RUN] Installiere: curl, wget, bpytop, tmux"
+else
+    apt-get install -y -qq curl wget bpytop tmux
+    log "Tools installiert: curl, wget, bpytop, tmux"
+fi
 
 # =============================================================================
 # 13. AUDITD (Wazuh Backend)
 # =============================================================================
 section "13. Auditd installieren (Wazuh Backend)"
 
-if $IS_LXC; then
+if $DRY_RUN; then
+    if $IS_LXC; then
+        info "[DRY-RUN] LXC: auditd wird uebersprungen"
+    else
+        info "[DRY-RUN] Auditd installieren"
+    fi
+elif $IS_LXC; then
     skip "LXC: auditd benoetigt direkten Kernel-Zugriff - wird uebersprungen"
     skip "LXC: Wazuh-Agent kann im LXC ohne auditd betrieben werden (syslog-Modus)"
     info "Tipp: Wazuh im 'no-audit' Modus konfigurieren fuer LXC"
@@ -560,7 +708,15 @@ fi
 # =============================================================================
 section "14. QEMU Guest Agent"
 
-if $IS_LXC; then
+if $DRY_RUN; then
+    if $IS_LXC; then
+        info "[DRY-RUN] LXC: QEMU Guest Agent wird uebersprungen"
+    elif $IS_CLOUD_VM; then
+        info "[DRY-RUN] Cloud-VM: QEMU Guest Agent wird uebersprungen"
+    else
+        info "[DRY-RUN] QEMU Guest Agent installieren"
+    fi
+elif $IS_LXC; then
     skip "LXC: QEMU Guest Agent ist nur fuer VMs relevant - wird uebersprungen"
     info "LXC Container kommunizieren direkt ueber den Proxmox-Host-Kernel"
 elif $IS_CLOUD_VM; then
@@ -580,9 +736,12 @@ fi
 # =============================================================================
 section "15. Bash History Hardening"
 
-# Pruefen ob bereits konfiguriert (bei erneutem Lauf nicht doppelt einfuegen)
-if ! grep -q "MSP Hardening - Bash History" /etc/bash.bashrc 2>/dev/null; then
-    cat >> /etc/bash.bashrc << 'EOF'
+if $DRY_RUN; then
+    info "[DRY-RUN] Bash History Timestamps + tmux Auto-Attach konfigurieren"
+else
+    # Pruefen ob bereits konfiguriert (bei erneutem Lauf nicht doppelt einfuegen)
+    if ! grep -q "MSP Hardening - Bash History" /etc/bash.bashrc 2>/dev/null; then
+        cat >> /etc/bash.bashrc << 'EOF'
 
 # MSP Hardening - Bash History
 HISTTIMEFORMAT="%d/%m/%y %T "
@@ -601,10 +760,11 @@ if command -v tmux &>/dev/null && [ -z "$TMUX" ]; then
     tmux attach -t main 2>/dev/null || tmux new -s main
 fi
 EOF
-    log "Bash History konfiguriert (Timestamps, 10000 Eintraege)"
-    log "tmux Auto-Attach konfiguriert (Session: 'main')"
-else
-    skip "Bash History bereits konfiguriert (uebersprungen)"
+        log "Bash History konfiguriert (Timestamps, 10000 Eintraege)"
+        log "tmux Auto-Attach konfiguriert (Session: 'main')"
+    else
+        skip "Bash History bereits konfiguriert (uebersprungen)"
+    fi
 fi
 warn "tmux wird beim naechsten Login automatisch gestartet - Umgehen mit: TMUX=skip bash"
 
@@ -613,9 +773,12 @@ warn "tmux wird beim naechsten Login automatisch gestartet - Umgehen mit: TMUX=s
 # =============================================================================
 section "16. MOTD einrichten"
 
-apt-get install -y -qq landscape-common 2>/dev/null || true
+if $DRY_RUN; then
+    info "[DRY-RUN] MOTD mit Systeminfo konfigurieren"
+else
+    apt-get install -y -qq landscape-common 2>/dev/null || true
 
-cat > /etc/update-motd.d/99-msp-info << 'MOTD'
+    cat > /etc/update-motd.d/99-msp-info << 'MOTD'
 #!/bin/bash
 echo ""
 echo "=============================================="
@@ -640,8 +803,9 @@ echo "=============================================="
 echo ""
 MOTD
 
-chmod +x /etc/update-motd.d/99-msp-info
-log "MOTD konfiguriert (Systeminfo beim Login)"
+    chmod +x /etc/update-motd.d/99-msp-info
+    log "MOTD konfiguriert (Systeminfo beim Login)"
+fi
 
 # =============================================================================
 # ZUSAMMENFASSUNG
@@ -668,13 +832,13 @@ echo "  ✓ Chrony NTP (de.pool.ntp.org)"
 if $IS_LXC; then
     echo "  ✓ Swap: LXC - vom Host verwaltet"
 else
-    echo "  ✓ Swap: $SWAP_INFO"
+    echo "  ✓ Swap: ${SWAP_INFO:-n/a}"
 fi
 echo "  ✓ SSH gehaertet (Port: $SSH_PORT)"
 echo "  ✓ Fail2Ban aktiv"
 echo "  ✓ UFW Firewall aktiv"
 echo "  ✓ Basis-Tools: curl, wget, bpytop, tmux"
-echo "  ✓ Automatische Sicherheitsupdates (nur Security)"
+echo "  ✓ Automatische Sicherheitsupdates (Auto-Reboot: $AUTO_REBOOT)"
 echo "  ✓ Logrotate konfiguriert (14 Tage, komprimiert)"
 echo "  ✓ Bash History mit Timestamps"
 echo "  ✓ tmux installiert + Auto-Attach beim Login (Session: 'main')"
@@ -689,14 +853,22 @@ if $IS_LXC; then
     echo "  ~ QEMU Guest Agent (nur fuer VMs)"
 elif $IS_CLOUD_VM; then
     echo "  ✓ Kernel/Sysctl Hardening"
-    echo "  ✓ IPv6 deaktiviert"
+    if $DISABLE_IPV6; then
+        echo "  ✓ IPv6 deaktiviert"
+    else
+        echo "  ✓ IPv6 gehaertet (bleibt aktiv)"
+    fi
     echo "  ✓ Auditd installiert (Wazuh-Backend)"
     echo ""
     echo -e "${CYAN}Cloud-VM-spezifisch uebersprungen:${NC}"
     echo "  ~ QEMU Guest Agent (vom Cloud-Anbieter verwaltet)"
 else
     echo "  ✓ Kernel/Sysctl Hardening"
-    echo "  ✓ IPv6 deaktiviert"
+    if $DISABLE_IPV6; then
+        echo "  ✓ IPv6 deaktiviert"
+    else
+        echo "  ✓ IPv6 gehaertet (bleibt aktiv)"
+    fi
     echo "  ✓ Auditd installiert (Wazuh-Backend)"
     echo "  ✓ QEMU Guest Agent (Proxmox)"
 fi
@@ -705,7 +877,7 @@ echo ""
 echo -e "${YELLOW}WICHTIGE NACHARBEITEN:${NC}"
 echo "  ! SSH Key hinterlegen, dann PasswordAuthentication in"
 echo "    /etc/ssh/sshd_config.d/99-hardening.conf deaktivieren"
-if $IS_CLOUD_VM; then
+if $IS_CLOUD_VM && ! $DRY_RUN; then
     NON_ROOT_USERS=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd)
     if [[ -z "$NON_ROOT_USERS" ]]; then
         echo "  ! Regulaeren User anlegen (adduser), SSH-Key hinterlegen,"
@@ -724,6 +896,13 @@ if $IS_LXC; then
     echo "  ! Falls Wazuh benoetigt: Agent im syslog-Modus konfigurieren"
 fi
 
+if $DRY_RUN; then
+    echo ""
+    echo -e "${YELLOW}DRY-RUN abgeschlossen - keine Aenderungen vorgenommen.${NC}"
+    echo -e "${YELLOW}Ohne --check ausfuehren um die Haertung durchzufuehren.${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}Neustart empfohlen!${NC}"
 echo ""
+info "Log-Datei: $LOG_FILE"
