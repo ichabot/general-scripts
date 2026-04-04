@@ -25,6 +25,22 @@ python docmost_to_obsidian.py --convert    # Convert
 
 ---
 
+### [opnsense-scripts](linux/opnsense-scripts/)
+
+**OPNsense Firewall Management Scripts**
+
+| Script | Description |
+|--------|-------------|
+| [m365-endpoints](linux/opnsense-scripts/m365-endpoints/) | Microsoft 365 endpoints → OPNsense alias lists (IPv4, IPv6, URLs) |
+
+```bash
+cd linux/opnsense-scripts/m365-endpoints
+pip install -r requirements.txt
+python m365_to_opnsense.py
+```
+
+---
+
 ### [installer-scripts](linux/installer-scripts/)
 
 **Interactive Installation Scripts for Self-Hosted Services**
@@ -98,6 +114,12 @@ general-scripts/
 │   ├── docmost-to-obsidian/
 │   │   ├── docmost_to_obsidian.py
 │   │   └── README.md
+│   ├── opnsense-scripts/
+│   │   ├── README.md
+│   │   └── m365-endpoints/
+│   │       ├── m365_to_opnsense.py
+│   │       ├── requirements.txt
+│   │       └── README.md
 │   └── installer-scripts/
 │       ├── README.md
 │       ├── authentik/
