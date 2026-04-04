@@ -9,6 +9,7 @@ Collection of interactive installation scripts for self-hosted services.
 | [authentik](authentik/) | Authentik identity provider (Docker Compose) |
 | [bunkerweb](bunkerweb/) | BunkerWeb WAF All-in-One (Docker Compose + UFW + systemd) |
 | [docker-ce](docker-ce/) | Docker CE for Ubuntu LTS (official repo + hardened daemon.json) |
+| [ubuntu-hardening](ubuntu-hardening/) | Ubuntu Server Hardening (LXC/VM/Cloud compatible) |
 
 ## General Notes
 
