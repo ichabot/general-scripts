@@ -1,0 +1,46 @@
+; ============================================
+; Outlook PRF-Datei für automatische Profilkonfiguration
+; Exchange/Microsoft 365 mit Autodiscover
+; ============================================
+
+[General]
+Custom=1
+ProfileName=Outlook
+DefaultProfile=Yes
+OverwriteProfile=Yes
+ModifyDefaultProfileIfPresent=TRUE
+
+[Service List]
+ServiceCount=1
+Service1=Microsoft Exchange
+
+[Service1]
+; Microsoft Exchange Service
+ServiceName=Microsoft Exchange
+OverwriteExistingService=Yes
+
+; Autodiscover aktivieren - Exchange ermittelt Server automatisch
+ConfigFlags=16
+
+; Falls ihr einen festen Server habt, hier eintragen:
+; ServerName=mail.euredomain.de
+
+; Home-Server (optional, meist durch Autodiscover ermittelt)
+; HomeSever=
+
+; Cached Mode aktivieren (empfohlen)
+CachedExchangeMode=0x00000002
+
+; Download-Einstellungen für Cached Mode
+; 0x00000001 = Alles
+; 0x00000002 = Letzte 12 Monate
+; 0x00000003 = Letzte 6 Monate
+; 0x00000004 = Letzte 3 Monate
+; 0x00000005 = Letzter Monat
+CachedExchangeModeMonths=0x00000001
+
+; Öffentliche Ordner im Cached Mode
+CachedExchangeModePublicFolders=0x00000000
+
+; Shared Folders im Cached Mode
+CachedExchangeModeSharedFolders=0x00000001
