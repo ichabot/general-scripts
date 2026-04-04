@@ -28,6 +28,29 @@ python docmost_to_obsidian.py --convert    # Phase 2: Convert
 
 ---
 
+### [mailstore-docs](mailstore-docs/)
+
+**MailStore Server Documentation Script (v2.1)**
+
+PowerShell script that generates comprehensive HTML documentation of a MailStore Server installation — with optional API integration.
+
+**Features:**
+- Generates structured HTML documentation
+- MailStore PowerShell API integration (optional)
+- Documents system info, license, archive stores, users, profiles, jobs
+- Performance data collection (optional)
+- Visual warnings for expired licenses, low disk space, etc.
+
+**Quick Start:**
+```powershell
+cd mailstore-docs
+.\MailStore-Documentation.ps1
+```
+
+See the [mailstore-docs README](mailstore-docs/README.md) for parameters and detailed usage.
+
+---
+
 ## Structure
 
 Each script lives in its own directory with its own documentation:
@@ -36,10 +59,13 @@ Each script lives in its own directory with its own documentation:
 general-scripts/
 ├── README.md
 ├── LICENSE
-├── docmost-to-obsidian/
+├── docmost-to-obsidian/            # Docmost → Obsidian converter
 │   ├── docmost_to_obsidian.py
 │   └── README.md
-└── ...                        # More scripts coming soon
+├── mailstore-docs/                 # MailStore Server documentation
+│   ├── MailStore-Documentation.ps1
+│   └── README.md
+└── ...                             # More scripts coming soon
 ```
 
 ## License
