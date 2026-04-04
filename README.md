@@ -51,6 +51,21 @@ See the [mailstore-docs README](mailstore-docs/README.md) for parameters and det
 
 ---
 
+### [installer-scripts](installer-scripts/)
+
+**Interactive Installation Scripts for Self-Hosted Services**
+
+Collection of Bash installers that guide you through setting up self-hosted services.
+
+Currently available:
+- **[Authentik](installer-scripts/authentik/)** — Identity provider / SSO via Docker Compose. Interactive setup with SMTP config, secure password generation, and credential storage.
+
+```bash
+sudo bash installer-scripts/authentik/install-authentik.sh
+```
+
+---
+
 ## Structure
 
 Each script lives in its own directory with its own documentation:
@@ -65,6 +80,11 @@ general-scripts/
 ├── mailstore-docs/                 # MailStore Server documentation
 │   ├── MailStore-Documentation.ps1
 │   └── README.md
+├── installer-scripts/              # Self-hosted service installers
+│   ├── README.md
+│   └── authentik/
+│       ├── install-authentik.sh
+│       └── README.md
 └── ...                             # More scripts coming soon
 ```
 
