@@ -94,25 +94,21 @@ chmod +x itflow_install.sh
 msg_ok "Installation script downloaded"
 
 msg_info "Starting ITFlow installation"
-IP=$(hostname -I | awk '{print $1}')
-DOMAIN="${IP}.nip.io"
 
-msg_info "Running ITFlow installer with domain: $DOMAIN"
-msg_info "Using master branch with self-signed SSL"
-
-# Run unattended installation
-/tmp/itflow_install.sh \
-  --domain "$DOMAIN" \
-  --timezone "UTC" \
-  --branch "master" \
-  --ssl "selfsigned" \
-  --unattended
+# Run interactive installation — the installer will prompt for:
+#   - Domain (FQDN — must have a DNS A record pointing to this container)
+#   - Timezone
+#   - Git branch (master/develop)
+#   - SSL type (letsencrypt/selfsigned/none)
+/tmp/itflow_install.sh
 
 msg_ok "ITFlow Installation Complete"
 
 msg_info "Getting installation details"
-IP=$(hostname -I | awk '{print $1}')
-DOMAIN="${IP}.nip.io"
+DOMAIN=$(grep 'config_base_url' /var/www/*/config.php 2>/dev/null | cut -d "'" -f 4 | head -n1)
+if [ -z "$DOMAIN" ]; then
+  DOMAIN="<your-domain>"
+fi
 
 # Get database password from config.php
 if [ -f "/var/www/${DOMAIN}/config.php" ]; then
@@ -127,8 +123,7 @@ msg_info "  ITFlow has been successfully installed!"
 msg_info "═══════════════════════════════════════════════════════════════"
 msg_info ""
 msg_info "  🌐 Web Access:"
-msg_info "     HTTPS: https://${DOMAIN}"
-msg_info "     HTTP:  http://${DOMAIN}"
+msg_info "     https://${DOMAIN}"
 msg_info ""
 msg_info "  📝 Setup Required:"
 msg_info "     Navigate to the URL above to complete initial setup"
@@ -146,11 +141,6 @@ msg_info "     Apache Config:     /etc/apache2/sites-available/${DOMAIN}.conf"
 msg_info "     PHP Config:        ${PHP_INI_PATH}"
 msg_info "     Cron Jobs:         /etc/cron.d/itflow"
 msg_info ""
-msg_info "  🔐 SSL Certificate:"
-msg_info "     Type: Self-signed"
-msg_info "     Note: Browser will show security warning"
-msg_info "     For production: Configure Let's Encrypt with a real domain"
-msg_info ""
 msg_info "  📚 Essential Next Steps:"
 msg_info "     1. Complete web setup at https://${DOMAIN}"
 msg_info "     2. Configure backups (especially master encryption key!)"
@@ -159,8 +149,6 @@ msg_info "     4. Configure email-to-ticket parsing"
 msg_info "     5. Review documentation at https://docs.itflow.org"
 msg_info ""
 msg_info "  ⚠️  Security Notes:"
-msg_info "     - Using self-signed SSL (browser warnings expected)"
-msg_info "     - For production: use real domain + Let's Encrypt"
 msg_info "     - Backup your master encryption key regularly!"
 msg_info "     - Configure firewall rules for ports 80/443"
 msg_info ""
