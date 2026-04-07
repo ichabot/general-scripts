@@ -1,0 +1,25 @@
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backups / temporäre Dateien
+*.bak
+*.tmp
+*.orig
+*.log
+
+# Sensible Daten — falls jemand versehentlich Test-Outputs committet
+erpnext-install-info.txt
+*.secret
+*.env
+.env
