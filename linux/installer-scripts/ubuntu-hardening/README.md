@@ -39,8 +39,11 @@ Comprehensive server hardening script for Ubuntu 22.04 / 24.04 LTS. Supports LXC
 | LXC         | skip   | skip   | skip    | skip | normal   |
 | Cloud VM    | ✓      | ✓      | skip    | ✓    | prohibit-password* |
 | Proxmox VM  | ✓      | ✓      | ✓       | ✓    | no       |
+| Bare Metal  | ✓      | ✓      | —       | ✓    | no       |
 
 *On Cloud VMs where only root exists, root login stays enabled (key-only) to prevent lockout.
+
+**Note:** Proxmox VMs with cloud-init are correctly detected as Proxmox VMs (not Cloud VMs). Detection uses DMI product name (`QEMU`/`Standard PC`) and sys_vendor to distinguish Proxmox from actual cloud providers.
 
 ## Requirements
 
