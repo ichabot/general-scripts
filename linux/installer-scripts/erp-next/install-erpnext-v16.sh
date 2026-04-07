@@ -129,7 +129,7 @@ ADMIN_PW="$(prompt_password "Administrator-Passwort für Site '${SITE_NAME}'")"
 # ---------- App-Katalog ----------
 # Format: name | git-url | app-name | branch | description | default
 declare -A APPS_URL APPS_NAME APPS_BRANCH APPS_DESC APPS_DEFAULT
-APP_ORDER=(payments hrms erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
+APP_ORDER=(payments hrms helpdesk lms builder erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
 
 # Offizielle Frappe-Apps (Kurzname als URL ist ok für 'bench get-app')
 APPS_URL[payments]="payments"
@@ -143,6 +143,24 @@ APPS_NAME[hrms]="hrms"
 APPS_BRANCH[hrms]="version-16"
 APPS_DESC[hrms]="HR & Payroll Modul (offiziell Frappe, ersetzt time_capture)"
 APPS_DEFAULT[hrms]="y"
+
+APPS_URL[helpdesk]="helpdesk"
+APPS_NAME[helpdesk]="helpdesk"
+APPS_BRANCH[helpdesk]="version-16"
+APPS_DESC[helpdesk]="Ticketsystem / Customer Support (offiziell Frappe)"
+APPS_DEFAULT[helpdesk]="n"
+
+APPS_URL[lms]="lms"
+APPS_NAME[lms]="lms"
+APPS_BRANCH[lms]="main"
+APPS_DESC[lms]="Learning Management System (offiziell Frappe)"
+APPS_DEFAULT[lms]="n"
+
+APPS_URL[builder]="builder"
+APPS_NAME[builder]="builder"
+APPS_BRANCH[builder]="main"
+APPS_DESC[builder]="Visueller Website-Builder (offiziell Frappe)"
+APPS_DEFAULT[builder]="n"
 
 # alyf-de DACH-Apps
 APPS_URL[erpnext_germany]="https://github.com/alyf-de/erpnext_germany"
@@ -582,7 +600,7 @@ install_app erpnext
 INSTALL_EOF
 
 # Install-Reihenfolge: erpnext_germany zuerst, dann Apps die darauf aufbauen
-INSTALL_ORDER=(erpnext_germany banking eu_einvoice erpnext_datev pdf_on_submit hrms payments)
+INSTALL_ORDER=(erpnext_germany banking eu_einvoice erpnext_datev pdf_on_submit hrms helpdesk lms builder payments)
 for k in "${INSTALL_ORDER[@]}"; do
     [[ ${APP_SELECTED[$k]:-0} -eq 1 ]] || continue
     echo "install_app ${APPS_NAME[$k]}" >> "$INSTALL_SCRIPT"
