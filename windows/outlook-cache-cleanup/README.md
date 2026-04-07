@@ -1,72 +1,72 @@
-# Outlook Autovervollständigung bereinigen
+# Outlook AutoComplete Cache Cleanup
 
-PowerShell-Script zum Bereinigen des Outlook AutoComplete-Cache. Optimiert für NinjaRMM-Deployment.
+PowerShell script to clean the Outlook AutoComplete cache. Optimized for NinjaRMM deployment.
 
 ## Features
 
-- AutoComplete-Cache löschen (NK2-Dateien + Stream_AutoComplete)
-- Outlook automatisch beenden und optional neu starten
-- Alle Outlook-Versionen (2010–365) unterstützt
-- Detailliertes Logging mit Zeitstempeln
-- WhatIf-Modus zum Testen ohne Änderungen
-- Exit-Codes für RMM-Monitoring
+- Clear AutoComplete cache (NK2 files + Stream_AutoComplete)
+- Automatically close Outlook and optionally restart it
+- Supports all Outlook versions (2010–365)
+- Detailed logging with timestamps
+- WhatIf mode for dry-run testing
+- Exit codes for RMM monitoring
 
-## Verwendung
+## Usage
 
-**Standard-Deployment** (nur AutoComplete löschen):
+**Standard deployment** (AutoComplete only):
 ```powershell
 .\Outlook-Cache-Cleanup.ps1
 ```
 
-**Mit Outlook-Neustart:**
+**With Outlook restart:**
 ```powershell
 .\Outlook-Cache-Cleanup.ps1 -RestartOutlook
 ```
 
-**Alle Caches löschen** (umfassend):
+**Clear all caches** (comprehensive):
 ```powershell
 .\Outlook-Cache-Cleanup.ps1 -ClearAllCaches
 ```
 
-**Test-Modus** (keine Änderungen):
+**Dry-run mode** (no changes):
 ```powershell
 .\Outlook-Cache-Cleanup.ps1 -WhatIf
 ```
 
-**Kombination:**
+**Combined:**
 ```powershell
 .\Outlook-Cache-Cleanup.ps1 -ClearAllCaches -RestartOutlook
 ```
 
-## RMM-Deployment
+## RMM Deployment
 
-> **Wichtig:** Das Script muss im **Benutzerkontext** laufen, nicht als SYSTEM, da die Outlook-Profile benutzerspezifisch sind.
+> **Important:** The script must run in the **user context**, not as SYSTEM, since Outlook profiles are user-specific.
 
-| RMM-Tool | Einstellung |
-|----------|-------------|
-| NinjaRMM | „Run as logged-on user" |
-| Datto RMM | User Context aktivieren |
+| RMM Tool | Setting |
+|----------|---------|
+| NinjaRMM | "Run as logged-on user" |
+| Datto RMM | Enable User Context |
 | Atera | Run as User |
 | Kaseya/Connectwise | Deploy as User |
 
-**Silent-Deployment** (ohne Fenster):
+**Silent deployment** (no window):
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "\\server\scripts\Outlook-Cache-Cleanup.ps1" -ClearAllCaches
 ```
 
-**Log-Datei an zentralem Ort:**
+**Log file to central location:**
 ```powershell
 .\Outlook-Cache-Cleanup.ps1 -LogPath "\\fileserver\logs\$env:COMPUTERNAME-outlook-cleanup.log"
 ```
 
-## Exit-Codes
+## Exit Codes
 
-| Code | Bedeutung |
-|------|-----------|
-| 0 | Erfolgreich / nichts zu tun |
-| 1 | Fehler (falscher Kontext, Outlook nicht beendbar) |
-| 2 | Mit Fehlern abgeschlossen |
+| Code | Meaning |
+|------|---------|
+| 0 | Success / nothing to clean |
+| 1 | Error (wrong context, Outlook could not be stopped) |
+| 2 | Completed with errors |
 
-## Log-Dateien
+## Log Files
 
-Logs werden unter `%ProgramData%\NinjaRMMAgent\Logs\` gespeichert. Logs älter als 30 Tage werden automatisch aufgeräumt.
+Logs are stored under `%ProgramData%\NinjaRMMAgent\Logs\`. Logs older than 30 days are automatically cleaned up.
