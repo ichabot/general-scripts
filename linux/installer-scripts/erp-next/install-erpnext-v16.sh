@@ -265,7 +265,7 @@ BASE_PKGS=(
     xvfb libfontconfig1 libxrender1 libjpeg-turbo8 xfonts-75dpi xfonts-base
     libmysqlclient-dev pkg-config
     redis-server
-    mariadb-server mariadb-client libmariadb-dev
+    mariadb-server mariadb-client
     build-essential
     cron
 )
