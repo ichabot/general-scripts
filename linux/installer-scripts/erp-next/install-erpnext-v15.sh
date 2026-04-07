@@ -534,10 +534,10 @@ cat >> "$INFO_FILE" <<EOF
   * Custom-App für eigene Anpassungen anlegen:
       su - ${FRAPPE_USER}
       cd ~/frappe-bench
-      bench new-app basys_custom    # Name frei wählbar
-      bench --site ${SITE_NAME} install-app basys_custom
+      bench new-app meine_app    # Name frei wählbar
+      bench --site ${SITE_NAME} install-app meine_app
 
-    Die App liegt unter apps/basys_custom/ und ist ein eigenes Git-Repo.
+    Die App liegt unter apps/meine_app/ und ist ein eigenes Git-Repo.
     Custom Fields, Scripts, Print Formats etc. über 'fixtures' in der App
     bündeln, damit der Deploy auf Prod über git pull + bench migrate reicht.
 
