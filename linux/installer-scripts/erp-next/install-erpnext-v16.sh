@@ -129,7 +129,7 @@ ADMIN_PW="$(prompt_password "Administrator-Passwort für Site '${SITE_NAME}'")"
 # ---------- App-Katalog ----------
 # Format: name | git-url | app-name | branch | description | default
 declare -A APPS_URL APPS_NAME APPS_BRANCH APPS_DESC APPS_DEFAULT
-APP_ORDER=(payments hrms helpdesk lms builder erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
+APP_ORDER=(payments hrms helpdesk lms builder crm drive insights gameplan wiki print_designer erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
 
 # Offizielle Frappe-Apps (Kurzname als URL ist ok für 'bench get-app')
 APPS_URL[payments]="payments"
@@ -161,6 +161,42 @@ APPS_NAME[builder]="builder"
 APPS_BRANCH[builder]="main"
 APPS_DESC[builder]="Visueller Website-Builder (offiziell Frappe)"
 APPS_DEFAULT[builder]="n"
+
+APPS_URL[crm]="crm"
+APPS_NAME[crm]="crm"
+APPS_BRANCH[crm]="main"
+APPS_DESC[crm]="Vollwertiges Sales-CRM mit Leads, Deals, Pipeline (offiziell Frappe)"
+APPS_DEFAULT[crm]="n"
+
+APPS_URL[drive]="drive"
+APPS_NAME[drive]="drive"
+APPS_BRANCH[drive]="main"
+APPS_DESC[drive]="Self-hosted Datei-Sharing wie Google Drive (offiziell Frappe)"
+APPS_DEFAULT[drive]="n"
+
+APPS_URL[insights]="insights"
+APPS_NAME[insights]="insights"
+APPS_BRANCH[insights]="main"
+APPS_DESC[insights]="BI-Tool mit Dashboards und Charts (offiziell Frappe)"
+APPS_DEFAULT[insights]="n"
+
+APPS_URL[gameplan]="gameplan"
+APPS_NAME[gameplan]="gameplan"
+APPS_BRANCH[gameplan]="main"
+APPS_DESC[gameplan]="Team-Kollaboration / Diskussionen wie Basecamp (offiziell Frappe)"
+APPS_DEFAULT[gameplan]="n"
+
+APPS_URL[wiki]="wiki"
+APPS_NAME[wiki]="wiki"
+APPS_BRANCH[wiki]="master"
+APPS_DESC[wiki]="Internes Wiki (offiziell Frappe)"
+APPS_DEFAULT[wiki]="n"
+
+APPS_URL[print_designer]="print_designer"
+APPS_NAME[print_designer]="print_designer"
+APPS_BRANCH[print_designer]="main"
+APPS_DESC[print_designer]="Drag-and-Drop Print-Format-Builder (offiziell Frappe)"
+APPS_DEFAULT[print_designer]="n"
 
 # alyf-de DACH-Apps
 APPS_URL[erpnext_germany]="https://github.com/alyf-de/erpnext_germany"
@@ -600,7 +636,7 @@ install_app erpnext
 INSTALL_EOF
 
 # Install-Reihenfolge: erpnext_germany zuerst, dann Apps die darauf aufbauen
-INSTALL_ORDER=(erpnext_germany banking eu_einvoice erpnext_datev pdf_on_submit hrms helpdesk lms builder payments)
+INSTALL_ORDER=(erpnext_germany banking eu_einvoice erpnext_datev pdf_on_submit hrms helpdesk lms builder crm drive insights gameplan wiki print_designer payments)
 for k in "${INSTALL_ORDER[@]}"; do
     [[ ${APP_SELECTED[$k]:-0} -eq 1 ]] || continue
     echo "install_app ${APPS_NAME[$k]}" >> "$INSTALL_SCRIPT"
