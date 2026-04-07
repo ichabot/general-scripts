@@ -81,17 +81,42 @@ if ! $IS_LXC && grep -qa 'lxc' /proc/self/cgroup 2>/dev/null; then
 fi
 
 # --- Cloud-VM Erkennung (Hetzner, AWS, GCP, Azure, etc.) ---
+# Wichtig: Proxmox VMs koennen auch cloud-init haben (fuer IP/User-Konfiguration).
+# Deshalb pruefen wir zuerst ob es eine Proxmox/QEMU VM ist und schliessen diese aus.
+IS_PROXMOX_VM=false
 if ! $IS_LXC; then
-    # Hetzner Cloud: DMI product_name oder Hetzner-spezifische Dateien
+    # Proxmox-VM Erkennung: QEMU product_name oder Proxmox-spezifische Merkmale
     if [[ -f /sys/class/dmi/id/product_name ]]; then
         PRODUCT_NAME=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
         case "$PRODUCT_NAME" in
-            *"Hetzner"*|*"hc-host"*) IS_CLOUD_VM=true ;;
+            *"QEMU"*|*"Standard PC"*|*"KVM"*) IS_PROXMOX_VM=true ;;
         esac
     fi
-    # cloud-init marker (Hetzner, AWS, GCP, etc.)
-    if [[ -f /etc/cloud/cloud.cfg ]] && ! $IS_CLOUD_VM; then
-        IS_CLOUD_VM=true
+    # Zusaetzlich: systemd-detect-virt meldet "kvm" fuer QEMU/Proxmox
+    if ! $IS_PROXMOX_VM && command -v systemd-detect-virt &>/dev/null; then
+        VIRT_TYPE=$(systemd-detect-virt 2>/dev/null || true)
+        if [[ "$VIRT_TYPE" == "kvm" ]] && [[ -f /sys/class/dmi/id/sys_vendor ]]; then
+            SYS_VENDOR=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)
+            case "$SYS_VENDOR" in
+                *"QEMU"*|*"Proxmox"*) IS_PROXMOX_VM=true ;;
+            esac
+        fi
+    fi
+
+    # Cloud-VM nur wenn es KEINE Proxmox-VM ist
+    if ! $IS_PROXMOX_VM; then
+        # Hetzner Cloud: DMI product_name oder Hetzner-spezifische Dateien
+        if [[ -f /sys/class/dmi/id/product_name ]]; then
+            PRODUCT_NAME=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+            case "$PRODUCT_NAME" in
+                *"Hetzner"*|*"hc-host"*) IS_CLOUD_VM=true ;;
+            esac
+        fi
+        # cloud-init marker (Hetzner, AWS, GCP, etc.)
+        # Nur wenn kein Proxmox — Proxmox nutzt cloud-init fuer VM-Templates
+        if [[ -f /etc/cloud/cloud.cfg ]] && ! $IS_CLOUD_VM; then
+            IS_CLOUD_VM=true
+        fi
     fi
 fi
 
@@ -104,8 +129,11 @@ elif $IS_CLOUD_VM; then
     echo -e "${GREEN}Umgebung erkannt: Cloud VM (z.B. Hetzner)${NC}"
     echo -e "${GREEN}  -> QEMU Guest Agent wird uebersprungen (Cloud-Hypervisor)${NC}"
     echo -e "${GREEN}  -> Alle anderen Sektionen werden ausgefuehrt${NC}"
+elif $IS_PROXMOX_VM; then
+    echo -e "${GREEN}Umgebung erkannt: Proxmox / QEMU VM${NC}"
+    echo -e "${GREEN}  -> Alle Sektionen werden ausgefuehrt (inkl. QEMU Guest Agent)${NC}"
 else
-    echo -e "${GREEN}Umgebung erkannt: VM / Bare Metal (z.B. Proxmox)${NC}"
+    echo -e "${GREEN}Umgebung erkannt: VM / Bare Metal${NC}"
     echo -e "${GREEN}  -> Alle Sektionen werden ausgefuehrt${NC}"
 fi
 
