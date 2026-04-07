@@ -77,6 +77,20 @@ cd windows\mailstore-docs
 
 ---
 
+### [outlook-cache-cleanup](windows/outlook-cache-cleanup/)
+
+**Outlook AutoComplete Cache Cleanup (NinjaRMM)**
+
+PowerShell script to clean Outlook AutoComplete cache (NK2 + Stream_AutoComplete). Supports all Outlook versions 2010–365. Features WhatIf mode, detailed logging, and RMM-compatible exit codes.
+
+```powershell
+.\Outlook-Cache-Cleanup.ps1                              # Standard cleanup
+.\Outlook-Cache-Cleanup.ps1 -ClearAllCaches -RestartOutlook  # Full cleanup + restart
+.\Outlook-Cache-Cleanup.ps1 -WhatIf                      # Test mode
+```
+
+---
+
 ### [outlook-profile-reset](windows/outlook-profile-reset/)
 
 **Outlook Profile Reset Toolkit**
@@ -129,6 +143,9 @@ general-scripts/
 └── windows/
     ├── mailstore-docs/
     │   ├── MailStore-Documentation.ps1
+    │   └── README.md
+    ├── outlook-cache-cleanup/
+    │   ├── Outlook-Cache-Cleanup.ps1
     │   └── README.md
     └── outlook-profile-reset/
         ├── README.md
