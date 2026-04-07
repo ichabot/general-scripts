@@ -50,12 +50,14 @@ python m365_to_opnsense.py
 | [authentik](linux/installer-scripts/authentik/) | Authentik identity provider (Docker Compose) |
 | [bunkerweb](linux/installer-scripts/bunkerweb/) | BunkerWeb WAF All-in-One (Docker Compose + UFW + systemd) |
 | [docker-ce](linux/installer-scripts/docker-ce/) | Docker CE for Ubuntu LTS (official repo + hardened daemon.json) |
+| [itflow](linux/installer-scripts/itflow/) | ITFlow PSA in Proxmox LXC (Apache + MariaDB + PHP + SSL, unattended) |
 | [ubuntu-hardening](linux/installer-scripts/ubuntu-hardening/) | Ubuntu Server Hardening v1.3 (LXC/VM/Cloud compatible, dry-run mode) |
 
 ```bash
 sudo bash linux/installer-scripts/authentik/install-authentik.sh
 sudo bash linux/installer-scripts/bunkerweb/install-bunkerweb.sh
 sudo bash linux/installer-scripts/docker-ce/install-docker.sh
+bash linux/installer-scripts/itflow/itflow-install.sh                           # Proxmox LXC
 sudo bash linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh          # Execute
 sudo bash linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh --check  # Dry-run
 ```
@@ -147,11 +149,12 @@ general-scripts/
 │   │       ├── requirements.txt
 │   │       └── README.md
 │   └── installer-scripts/
-│       ├── README.md
-│       ├── authentik/
-│       ├── bunkerweb/
-│       ├── docker-ce/
-│       └── ubuntu-hardening/
+    │       ├── README.md
+    │       ├── authentik/
+    │       ├── bunkerweb/
+    │       ├── docker-ce/
+    │       ├── itflow/
+    │       └── ubuntu-hardening/
 └── windows/
     ├── mailstore-docs/
     │   ├── MailStore-Documentation.ps1
