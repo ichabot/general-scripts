@@ -129,7 +129,7 @@ ADMIN_PW="$(prompt_password "Administrator-Passwort für Site '${SITE_NAME}'")"
 # ---------- App-Katalog ----------
 # Format: name | git-url | app-name | branch | description | default
 declare -A APPS_URL APPS_NAME APPS_BRANCH APPS_DESC APPS_DEFAULT
-APP_ORDER=(payments hrms erpnext_germany eu_einvoice pdf_on_submit erpnext_datev)
+APP_ORDER=(payments hrms erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
 
 # Offizielle Frappe-Apps (Kurzname als URL ist ok für 'bench get-app')
 APPS_URL[payments]="payments"
@@ -168,6 +168,12 @@ APPS_NAME[erpnext_datev]="erpnext_datev"
 APPS_BRANCH[erpnext_datev]="version-16"
 APPS_DESC[erpnext_datev]="DATEV-Export für Steuerberater (alyf.de, braucht erpnext_germany)"
 APPS_DEFAULT[erpnext_datev]="n"
+
+APPS_URL[banking]="https://github.com/alyf-de/banking"
+APPS_NAME[banking]="banking"
+APPS_BRANCH[banking]="version-16"
+APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de) - v16 BRANCH NOCH NICHT VERFÜGBAR (Stand 04/2026), bei 'y' bitte vorher prüfen"
+APPS_DEFAULT[banking]="n"
 
 # ---------- App-Auswahl ----------
 echo
@@ -247,8 +253,8 @@ cat <<EOF
   gesichert, chmod 600).
 EOF
 echo
-read -rp "So durchziehen? [y/N]: " _go
-[[ "${_go,,}" == "y" ]] || die "Abgebrochen."
+read -rp "So durchziehen? [Y/n]: " _go
+[[ "${_go,,}" == "n" ]] && die "Abgebrochen."
 
 # =============================================================================
 # SCHRITT 1 : System-Pakete
@@ -355,6 +361,8 @@ MYSQL_ROOT_PW='${MYSQL_ROOT_PW}'
 SITE_NAME='${SITE_NAME}'
 ADMIN_PW='${ADMIN_PW}'
 DEV_MODE='${DEV_MODE}'
+SETUP_MODE='${SETUP_MODE}'
+FRAPPE_USER='${FRAPPE_USER}'
 
 cd "\$HOME"
 
@@ -407,7 +415,7 @@ fi
 
 bench use "\${SITE_NAME}"
 
-# ---------- Apps holen ----------
+# ---------- Apps holen (vor Production-Setup, brauchen kein Redis) ----------
 get_app() {
     local name="\$1" url="\$2" branch="\$3"
     if [[ -d "apps/\${name}" ]]; then
@@ -428,69 +436,42 @@ done
 
 cat >> "$FRAPPE_SCRIPT" <<'FRAPPE_EOF'
 
-# ---------- Apps auf Site installieren ----------
-install_app() {
-    local name="$1"
-    if bench --site "${SITE_NAME}" list-apps 2>/dev/null | grep -qw "$name"; then
-        echo "[=] ${name} bereits auf Site installiert - skip"
-        return
-    fi
-    bench --site "${SITE_NAME}" install-app "$name"
-}
-
-install_app erpnext
-FRAPPE_EOF
-
-# Install-Reihenfolge: erpnext_germany zuerst, dann Apps die darauf aufbauen,
-# dann hrms und payments am Ende
-INSTALL_ORDER=(erpnext_germany eu_einvoice erpnext_datev pdf_on_submit hrms payments)
-for k in "${INSTALL_ORDER[@]}"; do
-    [[ ${APP_SELECTED[$k]:-0} -eq 1 ]] || continue
-    echo "install_app ${APPS_NAME[$k]}" >> "$FRAPPE_SCRIPT"
-done
-
-cat >> "$FRAPPE_SCRIPT" <<'FRAPPE_EOF'
-
-# ---------- Finale Settings ----------
-bench --site "${SITE_NAME}" set-maintenance-mode off
-bench --site "${SITE_NAME}" enable-scheduler
-
-if [[ "${DEV_MODE}" == "1" ]]; then
-    bench set-config -g developer_mode 1
-    bench --site "${SITE_NAME}" clear-cache
-fi
-
-echo "[+] Frappe-User-Setup fertig."
+echo "[+] Frappe-Setup Phase 1 fertig (Site + Apps geholt)."
 FRAPPE_EOF
 
 chmod +x "$FRAPPE_SCRIPT"
 chown "${FRAPPE_USER}:${FRAPPE_USER}" "$FRAPPE_SCRIPT"
 
-step "6/9  Frappe-Setup ausführen (kann 15-30 Minuten dauern)"
+step "6/9  Frappe-Setup Phase 1: bench init, Site, Apps holen (kann 15-30 Min dauern)"
 sudo -H -u "$FRAPPE_USER" bash "$FRAPPE_SCRIPT"
 rm -f "$FRAPPE_SCRIPT"
 
 # =============================================================================
-# SCHRITT 7 : Production-Setup (optional)
+# SCHRITT 7 : Redis/Supervisor zum Laufen bringen VOR App-Install
+# -----------------------------------------------------------------------------
+# v16 erwartet Redis auf Ports 11000/12000/13000 (separate Instanzen, nicht
+# die System-Redis auf 6379). Diese werden im Production-Modus durch
+# Supervisor gestartet, im Dev-Modus durch 'bench start' (honcho).
+# Da install-app während after_install Background-Jobs queued, braucht es
+# Redis bereits VOR dem App-Install.
 # =============================================================================
-if [[ "$SETUP_MODE" == "prod" ]]; then
-    step "7/9  Production-Setup (nginx + supervisor)"
 
-    # Default-nginx-Site entfernen, sonst Port-80-Konflikt
+if [[ "$SETUP_MODE" == "prod" ]]; then
+    step "7a/9  Production-Setup (nginx + supervisor) - VOR App-Install"
+
     rm -f /etc/nginx/sites-enabled/default
 
     BENCH_DIR="/home/${FRAPPE_USER}/frappe-bench"
     cd "$BENCH_DIR"
 
-    # WICHTIG: bench liegt in ~/.local/bin des frappe-Users (uv tool install).
+    # bench liegt in ~/.local/bin des frappe-Users (uv tool install).
     # sudo strippt PATH per default -> bench wird nicht gefunden.
-    # Lösung: PATH explizit als sudo-env durchreichen.
-    FRAPPE_PATH="/home/${FRAPPE_USER}/.local/bin:/home/${FRAPPE_USER}/.nvm/versions/node/$(sudo -u $FRAPPE_USER bash -c 'source ~/.nvm/nvm.sh && nvm version')/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    NODE_VER="$(sudo -u $FRAPPE_USER bash -c 'source ~/.nvm/nvm.sh && nvm version')"
+    FRAPPE_PATH="/home/${FRAPPE_USER}/.local/bin:/home/${FRAPPE_USER}/.nvm/versions/node/${NODE_VER}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
     sudo env "PATH=${FRAPPE_PATH}" bench setup production "$FRAPPE_USER" --yes
 
-    # Falls bench setup production die supervisor-Config nicht automatisch
-    # verlinkt hat (kommt vor), als Fallback manuell verlinken.
+    # Supervisor-Config Symlink falls nicht automatisch
     SUPERVISOR_CONF="/etc/supervisor/conf.d/frappe-bench.conf"
     BENCH_SUPERVISOR_CONF="${BENCH_DIR}/config/supervisor.conf"
     if [[ ! -f "$SUPERVISOR_CONF" && -f "$BENCH_SUPERVISOR_CONF" ]]; then
@@ -505,13 +486,137 @@ if [[ "$SETUP_MODE" == "prod" ]]; then
     systemctl enable --now nginx
     systemctl restart nginx
 
+    # Auf Redis-Ports warten
+    log "Warte auf Redis (Ports 11000, 12000, 13000)..."
+    for port in 11000 12000 13000; do
+        for i in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/$port) 2>/dev/null; then
+                ok "  Redis Port $port ist erreichbar."
+                break
+            fi
+            sleep 1
+            if [[ $i -eq 30 ]]; then
+                warn "  Redis Port $port nach 30s nicht erreichbar - install-app wird vermutlich fehlschlagen."
+            fi
+        done
+    done
+
     sleep 2
-    echo
     log "Supervisor-Status:"
     supervisorctl status || true
-    ok "Production-Stack läuft."
+    ok "Production-Stack läuft - Redis ist bereit für App-Installation."
+
 else
-    step "7/9  Production-Setup übersprungen (Dev-Mode)"
+    step "7a/9  Dev-Modus: Redis im Hintergrund starten (für App-Install)"
+
+    BENCH_DIR="/home/${FRAPPE_USER}/frappe-bench"
+
+    # Im Dev-Modus starten wir nur die drei Redis-Instanzen via honcho aus dem
+    # Procfile. Diese laufen im Hintergrund während des App-Installs, nach
+    # dem Install bleiben sie aktiv (User kann später bench start nutzen, das
+    # benutzt sie weiter oder startet sie neu).
+    HONCHO_LOG="/tmp/honcho-redis-install.log"
+    sudo -H -u "$FRAPPE_USER" bash -c "
+        source ~/.nvm/nvm.sh
+        export PATH=\"\$HOME/.local/bin:\$PATH\"
+        cd '${BENCH_DIR}'
+        nohup honcho start redis_cache redis_queue redis_socketio > '${HONCHO_LOG}' 2>&1 &
+        echo \$! > /tmp/honcho-redis.pid
+        disown
+    " || warn "honcho start fehlgeschlagen - install-app wird vermutlich fehlschlagen."
+
+    # Auf Redis-Ports warten
+    log "Warte auf Redis (Ports 11000, 12000, 13000)..."
+    for port in 11000 12000 13000; do
+        for i in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/$port) 2>/dev/null; then
+                ok "  Redis Port $port ist erreichbar."
+                break
+            fi
+            sleep 1
+            if [[ $i -eq 30 ]]; then
+                warn "  Redis Port $port nach 30s nicht erreichbar - log: ${HONCHO_LOG}"
+            fi
+        done
+    done
+fi
+
+# =============================================================================
+# SCHRITT 7b : Apps auf Site installieren (jetzt mit laufendem Redis)
+# =============================================================================
+step "7b/9  Apps auf Site installieren"
+
+INSTALL_SCRIPT="/tmp/_frappe_install_${FRAPPE_USER}.sh"
+cat > "$INSTALL_SCRIPT" <<INSTALL_EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+SITE_NAME='${SITE_NAME}'
+DEV_MODE='${DEV_MODE}'
+
+export PATH="\$HOME/.local/bin:\$PATH"
+export NVM_DIR="\$HOME/.nvm"
+# shellcheck disable=SC1091
+source "\$NVM_DIR/nvm.sh"
+nvm use 24 >/dev/null
+
+cd "\$HOME/frappe-bench"
+
+install_app() {
+    local name="\$1"
+    if bench --site "\${SITE_NAME}" list-apps 2>/dev/null | grep -qw "\$name"; then
+        echo "[=] \${name} bereits auf Site installiert - skip"
+        return
+    fi
+    bench --site "\${SITE_NAME}" install-app "\$name"
+}
+
+install_app erpnext
+INSTALL_EOF
+
+# Install-Reihenfolge: erpnext_germany zuerst, dann Apps die darauf aufbauen
+INSTALL_ORDER=(erpnext_germany banking eu_einvoice erpnext_datev pdf_on_submit hrms payments)
+for k in "${INSTALL_ORDER[@]}"; do
+    [[ ${APP_SELECTED[$k]:-0} -eq 1 ]] || continue
+    echo "install_app ${APPS_NAME[$k]}" >> "$INSTALL_SCRIPT"
+done
+
+cat >> "$INSTALL_SCRIPT" <<'INSTALL_EOF'
+
+# Finale Settings
+bench --site "${SITE_NAME}" set-maintenance-mode off
+bench --site "${SITE_NAME}" enable-scheduler
+
+if [[ "${DEV_MODE}" == "1" ]]; then
+    bench set-config -g developer_mode 1
+    bench --site "${SITE_NAME}" clear-cache
+fi
+
+echo "[+] App-Install fertig."
+INSTALL_EOF
+
+chmod +x "$INSTALL_SCRIPT"
+chown "${FRAPPE_USER}:${FRAPPE_USER}" "$INSTALL_SCRIPT"
+sudo -H -u "$FRAPPE_USER" bash "$INSTALL_SCRIPT"
+rm -f "$INSTALL_SCRIPT"
+
+# Im Dev-Modus den temporären honcho-redis-Prozess wieder beenden
+if [[ "$SETUP_MODE" == "dev" && -f /tmp/honcho-redis.pid ]]; then
+    HONCHO_PID="$(cat /tmp/honcho-redis.pid)"
+    if kill -0 "$HONCHO_PID" 2>/dev/null; then
+        log "Beende temporären honcho-redis (PID $HONCHO_PID)..."
+        pkill -P "$HONCHO_PID" 2>/dev/null || true
+        kill "$HONCHO_PID" 2>/dev/null || true
+    fi
+    rm -f /tmp/honcho-redis.pid /tmp/honcho-redis-install.log
+fi
+
+# Im Production-Modus alles nochmal sauber durchstarten
+if [[ "$SETUP_MODE" == "prod" ]]; then
+    step "7c/9  Production-Stack neu starten (nach App-Install)"
+    supervisorctl restart all
+    sleep 2
+    supervisorctl status || true
 fi
 
 # =============================================================================
