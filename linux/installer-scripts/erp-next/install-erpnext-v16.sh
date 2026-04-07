@@ -172,7 +172,7 @@ APPS_DEFAULT[erpnext_datev]="n"
 APPS_URL[banking]="https://github.com/alyf-de/banking"
 APPS_NAME[banking]="banking"
 APPS_BRANCH[banking]="version-16"
-APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de) - v16 BRANCH NOCH NICHT VERFÜGBAR (Stand 04/2026), bei 'y' bitte vorher prüfen"
+APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de)"
 APPS_DEFAULT[banking]="n"
 
 # ---------- App-Auswahl ----------
