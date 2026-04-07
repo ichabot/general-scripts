@@ -261,6 +261,13 @@ read -rp "So durchziehen? [Y/n]: " _go
 # =============================================================================
 step "1/9  System-Update und Basispakete"
 export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
+# MariaDB-Prompts unterdrücken (root-User-Abfrage etc.)
+echo "mariadb-server mariadb-server/root_password password" | debconf-set-selections
+echo "mariadb-server mariadb-server/root_password_again password" | debconf-set-selections
+echo "mariadb-server mariadb-server/feedback boolean false" | debconf-set-selections
+
 apt-get update -y
 apt-get upgrade -y
 
