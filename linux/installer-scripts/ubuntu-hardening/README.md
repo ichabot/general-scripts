@@ -92,12 +92,6 @@ curl -fsSL https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/
 
 Or clone and run locally:
 
-```bash
-git clone https://github.com/ichabot/general-scripts.git
-sudo bash general-scripts/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh --check  # Dry-run
-sudo bash general-scripts/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh          # Execute
-```
-
 ## After Installation
 
 1. Create a regular user: `adduser sysadmin`
