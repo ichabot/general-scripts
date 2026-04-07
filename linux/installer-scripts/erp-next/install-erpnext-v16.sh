@@ -148,7 +148,7 @@ APPS_URL[helpdesk]="helpdesk"
 APPS_NAME[helpdesk]="helpdesk"
 APPS_BRANCH[helpdesk]="version-16"
 APPS_DESC[helpdesk]="Ticketsystem / Customer Support (offiziell Frappe)"
-APPS_DEFAULT[helpdesk]="n"
+APPS_DEFAULT[helpdesk]="y"
 
 APPS_URL[lms]="lms"
 APPS_NAME[lms]="lms"
@@ -178,7 +178,7 @@ APPS_URL[insights]="insights"
 APPS_NAME[insights]="insights"
 APPS_BRANCH[insights]="main"
 APPS_DESC[insights]="BI-Tool mit Dashboards und Charts (offiziell Frappe)"
-APPS_DEFAULT[insights]="n"
+APPS_DEFAULT[insights]="y"
 
 APPS_URL[gameplan]="gameplan"
 APPS_NAME[gameplan]="gameplan"
@@ -196,7 +196,7 @@ APPS_URL[print_designer]="print_designer"
 APPS_NAME[print_designer]="print_designer"
 APPS_BRANCH[print_designer]="main"
 APPS_DESC[print_designer]="Drag-and-Drop Print-Format-Builder (offiziell Frappe)"
-APPS_DEFAULT[print_designer]="n"
+APPS_DEFAULT[print_designer]="y"
 
 # alyf-de DACH-Apps
 APPS_URL[erpnext_germany]="https://github.com/alyf-de/erpnext_germany"
@@ -221,13 +221,13 @@ APPS_URL[erpnext_datev]="https://github.com/alyf-de/erpnext_datev"
 APPS_NAME[erpnext_datev]="erpnext_datev"
 APPS_BRANCH[erpnext_datev]="version-16"
 APPS_DESC[erpnext_datev]="DATEV-Export für Steuerberater (alyf.de, braucht erpnext_germany)"
-APPS_DEFAULT[erpnext_datev]="n"
+APPS_DEFAULT[erpnext_datev]="y"
 
 APPS_URL[banking]="https://github.com/alyf-de/banking"
 APPS_NAME[banking]="banking"
 APPS_BRANCH[banking]="version-16"
-APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de) - v16 BRANCH NOCH NICHT VERFÜGBAR (Stand 04/2026), bei 'y' bitte vorher prüfen"
-APPS_DEFAULT[banking]="n"
+APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de)"
+APPS_DEFAULT[banking]="y"
 
 # ---------- App-Auswahl ----------
 echo
