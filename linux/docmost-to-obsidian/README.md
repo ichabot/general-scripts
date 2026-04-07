@@ -75,28 +75,6 @@ ObsidianVault/
     └── ...
 ```
 
-## How It Works
-
-### Link Rewriting
-
-Original Docmost format:
-```markdown
-![Screenshot](files/abc123-def456/screenshot.png)
-[Document](files/789xyz-012abc/report.pdf)
-```
-
-Converted to Obsidian format:
-```markdown
-![Screenshot](_attachments/screenshot.png)
-[Document](_attachments/report.pdf)
-```
-
-For files in subdirectories, relative paths are computed automatically:
-```markdown
-<!-- In Subfolder/Page.md -->
-![Image](../_attachments/screenshot.png)
-```
-
 ### Duplicate Handling
 
 If multiple attachments share the same filename, a UUID prefix is added:
