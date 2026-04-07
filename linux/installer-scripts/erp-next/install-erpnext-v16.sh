@@ -172,7 +172,7 @@ APPS_DEFAULT[erpnext_datev]="n"
 APPS_URL[banking]="https://github.com/alyf-de/banking"
 APPS_NAME[banking]="banking"
 APPS_BRANCH[banking]="version-16"
-APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de)"
+APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de) - v16 BRANCH NOCH NICHT VERFÜGBAR (Stand 04/2026), bei 'y' bitte vorher prüfen"
 APPS_DEFAULT[banking]="n"
 
 # ---------- App-Auswahl ----------
@@ -799,41 +799,35 @@ fi
 step "9/9  Fertig!"
 
 if [[ "$SETUP_MODE" == "prod" ]]; then
-    cat <<EOF
-
-${C_GREEN}ERPNext v16 läuft im Production-Modus.${C_RESET}
-
-  URL:       http://${SERVER_IP}/   (über Proxy: http://${SITE_NAME}/)
-  Admin:     Administrator
-  Passwort:  siehe ${INFO_FILE}
-
-${C_BOLD}Wichtig:${C_RESET}
-  Dein Reverse-Proxy muss den Host-Header '${SITE_NAME}' durchreichen,
-  sonst bekommst du 404. Für zusätzliche Hostnamen:
-    sudo -u ${FRAPPE_USER} bash -c 'cd ~/frappe-bench && bench --site ${SITE_NAME} add-domain <hostname>'
-
-  Bench-Restart nach Code-Änderungen:
-    sudo -u ${FRAPPE_USER} bash -c 'cd ~/frappe-bench && bench restart'
-
-EOF
+    echo
+    echo -e "${C_GREEN}ERPNext v16 läuft im Production-Modus.${C_RESET}"
+    echo
+    echo "  URL:       http://${SERVER_IP}/   (über Proxy: http://${SITE_NAME}/)"
+    echo "  Admin:     Administrator"
+    echo "  Passwort:  siehe ${INFO_FILE}"
+    echo
+    echo -e "${C_BOLD}Wichtig:${C_RESET}"
+    echo "  Dein Reverse-Proxy muss den Host-Header '${SITE_NAME}' durchreichen,"
+    echo "  sonst bekommst du 404. Für zusätzliche Hostnamen:"
+    echo "    sudo -u ${FRAPPE_USER} bash -c 'cd ~/frappe-bench && bench --site ${SITE_NAME} add-domain <hostname>'"
+    echo
+    echo "  Bench-Restart nach Code-Änderungen:"
+    echo "    sudo -u ${FRAPPE_USER} bash -c 'cd ~/frappe-bench && bench restart'"
+    echo
 else
-    cat <<EOF
-
-${C_GREEN}ERPNext v16 ist installiert (Dev-Modus).${C_RESET}
-
-  Dev-Server starten:
-    su - ${FRAPPE_USER}
-    cd ~/frappe-bench
-    bench start
-
-  URL: http://${SERVER_IP}:8000/
-
-EOF
+    echo
+    echo -e "${C_GREEN}ERPNext v16 ist installiert (Dev-Modus).${C_RESET}"
+    echo
+    echo "  Dev-Server starten:"
+    echo "    su - ${FRAPPE_USER}"
+    echo "    cd ~/frappe-bench"
+    echo "    bench start"
+    echo
+    echo "  URL: http://${SERVER_IP}:8000/"
+    echo
 fi
 
-cat <<EOF
-${C_YELLOW}Zugangsdaten liegen in ${INFO_FILE} (chmod 600, nur root).
-Bitte in Passwort-Manager übertragen und Datei danach löschen:
-  shred -u ${INFO_FILE}${C_RESET}
-
-EOF
+echo -e "${C_YELLOW}Zugangsdaten liegen in ${INFO_FILE} (chmod 600, nur root).${C_RESET}"
+echo -e "${C_YELLOW}Bitte in Passwort-Manager übertragen und Datei danach löschen:${C_RESET}"
+echo -e "${C_YELLOW}  shred -u ${INFO_FILE}${C_RESET}"
+echo
