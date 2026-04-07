@@ -1,9 +1,16 @@
-# Projekt-Instruction: ERPNext v15 Anpassungen
+# Projekt-Instruction: ERPNext v16 Anpassungen
 
-Du arbeitest an einer ERPNext v15 Installation auf Ubuntu 24.04 im
+Du arbeitest an einer ERPNext v16 Installation auf Ubuntu 24.04 im
 Production-Modus (nginx + supervisor, developer_mode aktiv). Alle
 Anpassungen laufen über eine dedizierte Custom App. Ziel ist ein
 jederzeit reproduzierbares, update-sicheres Grundgerüst-Template.
+
+Plattform-Details:
+- Python 3.14 (uv-managed, im Home des frappe-Users)
+- Node.js 24 (nvm-managed)
+- frappe-bench installiert via `uv tool install`
+- Bench-Verzeichnis: /home/frappe/frappe-bench
+- bench-Binary: /home/frappe/.local/bin/bench
 
 ## HARTE REGELN — nicht verhandelbar
 
@@ -13,9 +20,9 @@ NIEMALS Änderungen vornehmen in:
 - `apps/erpnext/**`
 - `apps/hrms/**`
 - `apps/payments/**`
-- `apps/erpnext_germany/**`, `apps/erpnext_datev/**`, `apps/banking/**`,
-  `apps/eu_einvoice/**`, `apps/erpnext_druckformate/**`, `apps/time_capture/**`
-- Jede andere nicht von mir/uns geschriebene App
+- `apps/erpnext_germany/**`, `apps/erpnext_datev/**`,
+  `apps/eu_einvoice/**`, `apps/pdf_on_submit/**`
+- Jede andere nicht von uns geschriebene App
 
 Das gilt für Python-Dateien, JS-Dateien, JSON-DocType-Definitionen, Print
 Formats, alles. `bench update` zieht bei diesen Apps neue Versionen und
@@ -105,7 +112,7 @@ und werden dort als Files committet (nicht als Fixture exportiert).
 | Einstellungen in "Selling Settings" etc. setzen    | Patch-Script unter `patches/`                                |
 | Neuen Report                                       | Script Report oder Query Report in der Custom App            |
 | Print Format                                       | In UI anlegen + Fixture ODER als File in `print_format/`     |
-| Kontenrahmen / Steuervorlagen / Territories        | NICHT anfassen — das macht Company-Setup bzw. alyf-Apps      |
+| Kontenrahmen / Steuervorlagen / Territories        | NICHT anfassen — das macht Company-Setup bzw. erpnext_germany |
 
 ## Fixtures — was exportiert wird
 
@@ -200,6 +207,14 @@ und die Präfix-Konvention feststehen.
 - Neue npm-Dependencies
 - Änderungen an Backup- oder Scheduler-Konfiguration
 - Alles, was sudo/root-Rechte braucht
+
+## Befehle, die du wissen musst
+
+- bench liegt unter /home/frappe/.local/bin/bench (uv tool install)
+- Wenn du sudo brauchst: `sudo env "PATH=/home/frappe/.local/bin:$PATH" bench ...`
+- Site-Name: aus Installation, fragen falls unklar
+- Bench-Restart nach Python-Änderungen: `bench restart` (Production) oder
+  automatisch via File-Watcher (Dev mit `bench start`)
 
 ## Am Anfang jeder Session
 
