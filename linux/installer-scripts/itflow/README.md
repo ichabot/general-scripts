@@ -2,6 +2,14 @@
 
 Automated Proxmox LXC container creation and [ITFlow](https://github.com/itflow-org/itflow) installation script. Uses the [Proxmox Community Scripts](https://github.com/community-scripts/ProxmoxVE) framework and the [official ITFlow install script](https://github.com/itflow-org/itflow-install-script).
 
+## Prerequisites
+
+Before running this script:
+
+1. **Create a DNS A record** pointing your desired domain (e.g. `itflow.example.com`) to the IP address the LXC container will use
+2. **Wait for DNS propagation** — verify with `nslookup itflow.example.com`
+3. SSL (Let's Encrypt) requires the domain to resolve correctly before installation
+
 ## What It Does
 
 1. **Creates an LXC container** with optimized defaults:
@@ -12,13 +20,13 @@ Automated Proxmox LXC container creation and [ITFlow](https://github.com/itflow-
    - Apache2 web server
    - MariaDB database
    - PHP with all required extensions (including `php-imap` and `php-mailparse` for email-to-ticket parsing)
-   - Self-signed SSL certificate
+   - SSL via Let's Encrypt (or self-signed)
 
-3. **Runs the official ITFlow installer** unattended:
-   - Clones from [itflow-org/itflow](https://github.com/itflow-org/itflow) (master branch)
-   - Sets up the database with auto-generated secure passwords
-   - Configures cron jobs (ticket email parser, mail queue, domain/cert refreshers)
-   - Creates `config.php`
+3. **Runs the official ITFlow installer** interactively, prompting for:
+   - Domain (FQDN)
+   - Timezone
+   - Git branch (master/develop)
+   - SSL type (letsencrypt/selfsigned/none)
 
 4. **Includes an update function** for later maintenance
 
@@ -38,18 +46,10 @@ bash itflow-install.sh
 
 ## After Installation
 
-1. Navigate to `https://<IP>.nip.io` (accept the SSL warning)
+1. Navigate to `https://your-domain.com`
 2. Complete the setup wizard to create your admin account
 3. Configure email for tickets and invoices
 4. Set up backups (especially the **master encryption key**!)
-
-## Domain & SSL
-
-By default the script uses `<container-IP>.nip.io` for immediate access with a self-signed certificate. For production use:
-
-- Point a real domain to the container IP
-- Run `certbot --apache -d yourdomain.com` for Let's Encrypt SSL
-- Update `config_base_url` in `/var/www/<domain>/config.php`
 
 ## Container Defaults
 
@@ -60,7 +60,6 @@ By default the script uses `<container-IP>.nip.io` for immediate access with a s
 | RAM | 4 GB |
 | Disk | 20 GB |
 | Type | Unprivileged |
-| SSL | Self-signed |
 | Branch | master |
 
 ## ITFlow Features
