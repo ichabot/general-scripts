@@ -27,7 +27,7 @@ Automated Proxmox LXC container creation and [ITFlow](https://github.com/itflow-
 Run on the Proxmox host:
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/DEIN-REPO/itflow-install.sh)"
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/installer-scripts/itflow/itflow-install.sh)"
 ```
 
 Or copy the script to the host and run it directly:
