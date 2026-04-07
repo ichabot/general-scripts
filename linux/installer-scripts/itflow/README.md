@@ -32,16 +32,23 @@ Before running this script:
 
 ## Usage
 
-Run on the Proxmox host:
+**One-liner** — download and run directly on the Proxmox host:
 
 ```bash
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/installer-scripts/itflow/itflow-install.sh)"
 ```
 
-Or copy the script to the host and run it directly:
+Or with curl:
 
 ```bash
-bash itflow-install.sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/installer-scripts/itflow/itflow-install.sh)"
+```
+
+Or clone the repo and run locally:
+
+```bash
+git clone https://github.com/ichabot/general-scripts.git
+bash general-scripts/linux/installer-scripts/itflow/itflow-install.sh
 ```
 
 ## After Installation
