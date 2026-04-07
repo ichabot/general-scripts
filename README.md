@@ -91,6 +91,18 @@ PowerShell script to clean Outlook AutoComplete cache (NK2 + Stream_AutoComplete
 
 ---
 
+### [rom-duplicate-cleanup](windows/rom-duplicate-cleanup/)
+
+**ROM Duplicate Cleanup Script**
+
+PowerShell script that automatically deduplicates ROM collections. Scores ROMs by region priority and quality tags (good dumps, hacks, bad dumps, etc.) and keeps only the best version of each game.
+
+```powershell
+.\rom-cleanup-simple.ps1 -RomPath "C:\Your\ROM\Collection"
+```
+
+---
+
 ### [outlook-profile-reset](windows/outlook-profile-reset/)
 
 **Outlook Profile Reset Toolkit**
@@ -146,6 +158,9 @@ general-scripts/
     │   └── README.md
     ├── outlook-cache-cleanup/
     │   ├── Outlook-Cache-Cleanup.ps1
+    │   └── README.md
+    ├── rom-duplicate-cleanup/
+    │   ├── rom-cleanup-simple.ps1
     │   └── README.md
     └── outlook-profile-reset/
         ├── README.md
