@@ -71,12 +71,28 @@ EXTRA_PORTS=(
 
 ## Usage
 
+**One-liner** — download and run directly:
+
 ```bash
-# Dry-run: show what would be done (no changes)
-sudo bash ubuntu_hardening.sh --check
+# Dry-run (no changes)
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh)" -- --check
 
 # Execute hardening
-sudo bash ubuntu_hardening.sh
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh)"
+```
+
+Or with curl:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ichabot/general-scripts/main/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh | sudo bash
+```
+
+Or clone and run locally:
+
+```bash
+git clone https://github.com/ichabot/general-scripts.git
+sudo bash general-scripts/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh --check  # Dry-run
+sudo bash general-scripts/linux/installer-scripts/ubuntu-hardening/ubuntu_hardening.sh          # Execute
 ```
 
 ## After Installation
