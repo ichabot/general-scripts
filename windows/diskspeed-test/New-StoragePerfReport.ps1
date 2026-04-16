@@ -46,6 +46,22 @@ if (-not $Title) {
     $Title = "Storage Performance Report - $($sysInfo.Hostname) - $($sysInfo.Timestamp)"
 }
 
+# --- Culture-safe Number-Parser ---
+# Der [double]-Cast in PowerShell nutzt inkonsistent Invariant Culture und bricht
+# bei deutschen Dezimalzahlen ("3027,5" -> 30275). Daher explizite TryParse-Kaskade.
+function Get-Double {
+    param($value)
+    if ($null -eq $value -or "$value" -eq '') { return 0.0 }
+    $str = "$value".Trim()
+    $dbl = 0.0
+    $styles = [Globalization.NumberStyles]::Float -bor [Globalization.NumberStyles]::AllowThousands
+    # 1. Aktuelle Kultur (passt zur CSV, die von Export-Csv in derselben Kultur geschrieben wurde)
+    if ([double]::TryParse($str, $styles, [Globalization.CultureInfo]::CurrentCulture, [ref]$dbl)) { return $dbl }
+    # 2. Fallback: Invariant (falls CSV aus anderer Locale kommt)
+    if ([double]::TryParse($str, $styles, [Globalization.CultureInfo]::InvariantCulture, [ref]$dbl)) { return $dbl }
+    return 0.0
+}
+
 # --- SVG-Chart-Helper ---
 function Format-ChartValue {
     param($value, [string]$unit)
@@ -111,32 +127,26 @@ function New-BarChart {
 }
 
 # --- Daten fuer Charts aufbereiten ---
-# WICHTIG: PSCustomObject, nicht Hashtable - sonst klappt Measure-Object -Property nicht
+# WICHTIG: Get-Double statt [double]-Cast wegen Kultur-Problem bei deutschen Dezimalzahlen
 $iopsData = @($results | Where-Object { $_.Test -match '^(4K|8K)' } | ForEach-Object {
-    [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.Total_IOPS; Unit = "IOPS" }
+    [PSCustomObject]@{ Label = $_.Test; Value = (Get-Double $_.Total_IOPS); Unit = "IOPS" }
 })
 
 $tputData = @($results | ForEach-Object {
-    [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.Total_MBps; Unit = "MB/s" }
+    [PSCustomObject]@{ Label = $_.Test; Value = (Get-Double $_.Total_MBps); Unit = "MB/s" }
 })
 
 $latData = @($results | ForEach-Object {
-    [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.P99_ms; Unit = "ms" }
+    [PSCustomObject]@{ Label = $_.Test; Value = (Get-Double $_.P99_ms); Unit = "ms" }
 })
 
-# KPIs berechnen - robust gegen leere Arrays UND deutsche Dezimalzahlen in CSV
-# Measure-Object parst String-Properties mit Invariant Culture (",") -> falsch bei "3027,5"
-# Daher manuelle Schleife mit [double]-Cast (culture-aware)
+# KPIs berechnen - robust gegen leere Arrays UND deutsche Dezimalzahlen
 function Get-Max {
     param($items, [string]$prop)
     $max = 0.0
     foreach ($item in $items) {
-        $raw = $item.$prop
-        if ($null -eq $raw -or "$raw" -eq '') { continue }
-        try {
-            $val = [double]$raw
-            if ($val -gt $max) { $max = $val }
-        } catch { }
+        $val = Get-Double $item.$prop
+        if ($val -gt $max) { $max = $val }
     }
     return $max
 }
