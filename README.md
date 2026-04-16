@@ -105,6 +105,22 @@ PowerShell script that automatically deduplicates ROM collections. Scores ROMs b
 
 ---
 
+### [diskspeed-test](windows/diskspeed-test/)
+
+**Storage Performance Benchmark Toolkit**
+
+DiskSpd-based storage benchmark for Windows Server VMs on SAN/SSD infrastructure. Runs a full I/O test matrix (4K random, 8K OLTP, 64K sequential, 1M large-block) with queue-depth sweeps. Generates a standalone dark-themed HTML report with inline SVG charts, KPI cards, and latency percentiles.
+
+```powershell
+# Run benchmark
+.\Invoke-StoragePerfTest.ps1 -TargetPath E:\bench\test.dat -FileSizeGB 64
+
+# Generate HTML report
+.\New-StoragePerfReport.ps1 -ResultsDir C:\StoragePerf\Results_20260416_094240 -OpenAfter
+```
+
+---
+
 ### [outlook-profile-reset](windows/outlook-profile-reset/)
 
 **Outlook Profile Reset Toolkit**
@@ -153,9 +169,15 @@ general-scripts/
     │       ├── authentik/
     │       ├── bunkerweb/
     │       ├── docker-ce/
+    │       ├── erp-next/
     │       ├── itflow/
     │       └── ubuntu-hardening/
 └── windows/
+    ├── diskspeed-test/
+    │   ├── Invoke-StoragePerfTest.ps1
+    │   ├── New-StoragePerfReport.ps1
+    │   ├── diskspd-2.2.zip
+    │   └── README.md
     ├── mailstore-docs/
     │   ├── MailStore-Documentation.ps1
     │   └── README.md
