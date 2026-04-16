@@ -244,20 +244,14 @@ if (Test-Path $TargetPath) {
 }
 
 if (-not (Test-Path $TargetPath)) {
-    Write-Host "Erstelle Testdatei ($FileSizeGB GB) via fsutil..." -ForegroundColor Yellow
-    # fsutil ist robuster als diskspd -c, gerade bei -Sh
-    $fsutilOutput = & fsutil file createnew $TargetPath $needed 2>&1
+    Write-Host "Erstelle und fuelle Testdatei ($FileSizeGB GB) via diskspd -c..." -ForegroundColor Yellow
+    # WICHTIG: Target-Pfad MUSS das letzte Argument sein!
+    # -c erstellt Datei und schreibt Daten rein (neutralisiert Dedup/Compression auf SAN)
+    $createArgs = @("-c$($FileSizeGB)G", "-b1M", "-w100", "-d1", $TargetPath)
+    $createOut = & $DiskSpd $createArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Host $fsutilOutput -ForegroundColor Red
-        throw "fsutil konnte Testdatei nicht erstellen. Pfad pruefen, als Admin ausfuehren, Laufwerk-Space pruefen."
-    }
-    # Optional: mit Zufallsdaten beschreiben, damit Dedup/Compression auf SAN nicht reinpfuschen
-    Write-Host "Fuelle Testdatei mit Daten (damit SAN-Dedup/Compression neutralisiert)..." -ForegroundColor Yellow
-    $fillArgs = @("-d30", "-b1M", "-w100", "-t2", "-o4", $TargetPath)
-    $fillOut = & $DiskSpd $fillArgs 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host $fillOut -ForegroundColor Red
-        throw "Fill-Step fehlgeschlagen."
+        Write-Host $createOut -ForegroundColor Red
+        throw "diskspd konnte Testdatei nicht erstellen (ExitCode $LASTEXITCODE)."
     }
 }
 
