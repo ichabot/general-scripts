@@ -84,26 +84,31 @@ function New-BarChart {
 }
 
 # --- Daten fuer Charts aufbereiten ---
-# IOPS (nur 4K + 8K Tests - sequential ist throughput-dominiert)
-$iopsData = $results | Where-Object { $_.Test -match '^(4K|8K)' } | ForEach-Object {
-    @{ Label = $_.Test; Value = [int]$_.Total_IOPS; Unit = "IOPS" }
+# WICHTIG: PSCustomObject, nicht Hashtable - sonst klappt Measure-Object -Property nicht
+$iopsData = @($results | Where-Object { $_.Test -match '^(4K|8K)' } | ForEach-Object {
+    [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.Total_IOPS; Unit = "IOPS" }
+})
+
+$tputData = @($results | ForEach-Object {
+    [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.Total_MBps; Unit = "MB/s" }
+})
+
+$latData = @($results | ForEach-Object {
+    [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.P99_ms; Unit = "ms" }
+})
+
+# KPIs berechnen - robust gegen leere Arrays
+function Get-Max {
+    param($items, [string]$prop)
+    $filtered = @($items | Where-Object { [double]$_.$prop -gt 0 })
+    if ($filtered.Count -eq 0) { return 0 }
+    return ($filtered | Measure-Object -Property $prop -Maximum).Maximum
 }
 
-# Throughput (alle Tests, MB/s)
-$tputData = $results | ForEach-Object {
-    @{ Label = $_.Test; Value = [double]$_.Total_MBps; Unit = "MB/s" }
-}
-
-# Latenz P99 (kleinere Werte = besser, aber lesbar als Balken)
-$latData = $results | ForEach-Object {
-    @{ Label = $_.Test; Value = [double]$_.P99_ms; Unit = "ms" }
-}
-
-# KPIs berechnen
-$peakReadIOPS  = ($results | Where-Object { [int]$_.Read_IOPS  -gt 0 } | Measure-Object -Property Read_IOPS  -Maximum).Maximum
-$peakWriteIOPS = ($results | Where-Object { [int]$_.Write_IOPS -gt 0 } | Measure-Object -Property Write_IOPS -Maximum).Maximum
-$peakReadMBps  = ($results | Where-Object { [double]$_.Read_MBps  -gt 0 } | Measure-Object -Property Read_MBps  -Maximum).Maximum
-$peakWriteMBps = ($results | Where-Object { [double]$_.Write_MBps -gt 0 } | Measure-Object -Property Write_MBps -Maximum).Maximum
+$peakReadIOPS  = Get-Max $results 'Read_IOPS'
+$peakWriteIOPS = Get-Max $results 'Write_IOPS'
+$peakReadMBps  = Get-Max $results 'Read_MBps'
+$peakWriteMBps = Get-Max $results 'Write_MBps'
 
 # --- HTML zusammenbauen ---
 $chartIOPS = New-BarChart -Heading "Random IOPS" -Data $iopsData -BarColor '#3b82f6'
