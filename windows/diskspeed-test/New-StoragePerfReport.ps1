@@ -1,126 +1,160 @@
 <#
 .SYNOPSIS
     Generiert einen HTML-Report aus einem Invoke-StoragePerfTest Ergebnis-Ordner.
- 
+
 .DESCRIPTION
     Liest _SystemInfo.json, _Summary.csv und _Warnings.txt und baut einen
     eigenstaendigen HTML-Report (alles inline - CSS, SVG-Charts, keine Dependencies).
- 
+
 .PARAMETER ResultsDir
     Pfad zum Ergebnis-Ordner (z.B. C:\StoragePerf\Results_20260416_094240)
- 
+
 .PARAMETER Title
     Titel fuer den Report (Default: Hostname + Datum)
- 
+
 .PARAMETER OpenAfter
     Oeffnet den Report nach Erstellung im Default-Browser
- 
+
 .EXAMPLE
     .\New-StoragePerfReport.ps1 -ResultsDir C:\StoragePerf\Results_20260416_094240 -OpenAfter
 #>
- 
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ResultsDir,
     [string]$Title = "",
     [switch]$OpenAfter
 )
- 
+
 $ErrorActionPreference = 'Stop'
- 
+
 if (-not (Test-Path $ResultsDir)) { throw "ResultsDir nicht gefunden: $ResultsDir" }
- 
+
 # --- Daten laden ---
 $csvPath  = Join-Path $ResultsDir "_Summary.csv"
 $jsonPath = Join-Path $ResultsDir "_SystemInfo.json"
 $warnPath = Join-Path $ResultsDir "_Warnings.txt"
- 
+
 if (-not (Test-Path $csvPath))  { throw "_Summary.csv nicht gefunden in $ResultsDir" }
 if (-not (Test-Path $jsonPath)) { throw "_SystemInfo.json nicht gefunden in $ResultsDir" }
- 
+
 $results  = Import-Csv $csvPath
 $sysInfo  = Get-Content $jsonPath -Raw | ConvertFrom-Json
 $warnings = if (Test-Path $warnPath) { Get-Content $warnPath } else { @() }
- 
+
 if (-not $Title) {
     $Title = "Storage Performance Report - $($sysInfo.Hostname) - $($sysInfo.Timestamp)"
 }
- 
+
 # --- SVG-Chart-Helper ---
+function Format-ChartValue {
+    param($value, [string]$unit)
+    switch ($unit) {
+        'ms'   { return ("{0:N2} {1}" -f [double]$value, $unit) }
+        'MB/s' {
+            if ([double]$value -lt 10) { return ("{0:N1} {1}" -f [double]$value, $unit) }
+            return ("{0:N0} {1}" -f [double]$value, $unit)
+        }
+        default { return ("{0:N0} {1}" -f [double]$value, $unit) }
+    }
+}
+
 function New-BarChart {
     param(
         [string]$Heading,
-        [array]$Data,        # Array of @{Label=...; Value=...; Unit=...}
+        [array]$Data,        # Array of PSCustomObject with Label/Value/Unit
         [string]$BarColor = '#3b82f6',
         [int]$Width = 760,
-        [int]$BarHeight = 26,
+        [int]$BarHeight = 28,
         [int]$BarGap = 8,
-        [int]$LabelWidth = 220
+        [int]$LabelWidth = 220,
+        [int]$ValueSpace = 100   # Reserve rechts fuer Werte die nicht in Balken passen
     )
     if (-not $Data -or $Data.Count -eq 0) { return "" }
-    $max = ($Data | Measure-Object -Property Value -Maximum).Maximum
+    $max = 0.0
+    foreach ($d in $Data) { if ($d.Value -gt $max) { $max = [double]$d.Value } }
     if ($max -eq 0) { $max = 1 }
-    $chartWidth = $Width - $LabelWidth - 20
+
+    $chartWidth = $Width - $LabelWidth - $ValueSpace
     $height = ($BarHeight + $BarGap) * $Data.Count + 20
- 
-    $svg = @"
-<svg class="chart" viewBox="0 0 $Width $height" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="$Heading">
-"@
+
+    $svg = "<svg class=""chart"" viewBox=""0 0 $Width $height"" xmlns=""http://www.w3.org/2000/svg"" role=""img"" aria-label=""$Heading"">`n"
     $y = 10
     foreach ($d in $Data) {
-        $barWidth = [math]::Round(($d.Value / $max) * $chartWidth, 0)
-        $valText  = "{0:N0} {1}" -f $d.Value, $d.Unit
-        $textY    = $y + ($BarHeight / 2) + 5
-        $svg += @"
- 
-  <text x="$($LabelWidth - 8)" y="$textY" text-anchor="end" class="chart-label">$($d.Label)</text>
-  <rect x="$LabelWidth" y="$y" width="$barWidth" height="$BarHeight" rx="3" fill="$BarColor" opacity="0.85"/>
-  <text x="$($LabelWidth + $barWidth + 6)" y="$textY" class="chart-value">$valText</text>
-"@
+        $val = [double]$d.Value
+        $barWidth = if ($max -gt 0) { [math]::Round(($val / $max) * $chartWidth, 0) } else { 0 }
+        # Minimum-Breite damit auch Null-Werte/kleine Werte sichtbar sind
+        if ($val -gt 0 -and $barWidth -lt 2) { $barWidth = 2 }
+
+        $valText = Format-ChartValue $val $d.Unit
+        $textY   = $y + ($BarHeight / 2) + 4
+        # Geschaetzte Textbreite (~6.5 px pro Zeichen bei 11px monospace)
+        $textEstWidth = $valText.Length * 6.5
+        # Entscheidung: Text in Balken wenn er reinpasst (mit 12px Padding), sonst rechts daneben
+        $textInside = $barWidth -ge ($textEstWidth + 12)
+
+        $svg += "  <text x=""$($LabelWidth - 8)"" y=""$textY"" text-anchor=""end"" class=""chart-label"">$($d.Label)</text>`n"
+        $svg += "  <rect x=""$LabelWidth"" y=""$y"" width=""$barWidth"" height=""$BarHeight"" rx=""3"" fill=""$BarColor"" opacity=""0.9""/>`n"
+        if ($textInside) {
+            $textX = $LabelWidth + $barWidth - 6
+            $svg += "  <text x=""$textX"" y=""$textY"" text-anchor=""end"" class=""chart-value-inside"">$valText</text>`n"
+        } else {
+            $textX = $LabelWidth + $barWidth + 6
+            $svg += "  <text x=""$textX"" y=""$textY"" class=""chart-value"">$valText</text>`n"
+        }
         $y += ($BarHeight + $BarGap)
     }
-    $svg += "`n</svg>"
+    $svg += "</svg>"
     return $svg
 }
- 
+
 # --- Daten fuer Charts aufbereiten ---
 # WICHTIG: PSCustomObject, nicht Hashtable - sonst klappt Measure-Object -Property nicht
 $iopsData = @($results | Where-Object { $_.Test -match '^(4K|8K)' } | ForEach-Object {
     [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.Total_IOPS; Unit = "IOPS" }
 })
- 
+
 $tputData = @($results | ForEach-Object {
     [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.Total_MBps; Unit = "MB/s" }
 })
- 
+
 $latData = @($results | ForEach-Object {
     [PSCustomObject]@{ Label = $_.Test; Value = [double]$_.P99_ms; Unit = "ms" }
 })
- 
-# KPIs berechnen - robust gegen leere Arrays
+
+# KPIs berechnen - robust gegen leere Arrays UND deutsche Dezimalzahlen in CSV
+# Measure-Object parst String-Properties mit Invariant Culture (",") -> falsch bei "3027,5"
+# Daher manuelle Schleife mit [double]-Cast (culture-aware)
 function Get-Max {
     param($items, [string]$prop)
-    $filtered = @($items | Where-Object { [double]$_.$prop -gt 0 })
-    if ($filtered.Count -eq 0) { return 0 }
-    return ($filtered | Measure-Object -Property $prop -Maximum).Maximum
+    $max = 0.0
+    foreach ($item in $items) {
+        $raw = $item.$prop
+        if ($null -eq $raw -or "$raw" -eq '') { continue }
+        try {
+            $val = [double]$raw
+            if ($val -gt $max) { $max = $val }
+        } catch { }
+    }
+    return $max
 }
- 
+
 $peakReadIOPS  = Get-Max $results 'Read_IOPS'
 $peakWriteIOPS = Get-Max $results 'Write_IOPS'
 $peakReadMBps  = Get-Max $results 'Read_MBps'
 $peakWriteMBps = Get-Max $results 'Write_MBps'
- 
+
 # --- HTML zusammenbauen ---
 $chartIOPS = New-BarChart -Heading "Random IOPS" -Data $iopsData -BarColor '#3b82f6'
 $chartTput = New-BarChart -Heading "Throughput (MB/s)" -Data $tputData -BarColor '#10b981'
 $chartLat  = New-BarChart -Heading "Latency P99 (ms)" -Data $latData  -BarColor '#f59e0b'
- 
+
 # System-Info-Tabelle
 $sysRows = ""
 $sysInfo.PSObject.Properties | ForEach-Object {
     $sysRows += "      <tr><th>$($_.Name)</th><td>$($_.Value)</td></tr>`n"
 }
- 
+
 # Warnungs-Block
 $warnBlock = ""
 if ($warnings.Count -gt 0) {
@@ -134,7 +168,7 @@ $warnItems
   </div>
 "@
 }
- 
+
 # Results-Tabelle
 $resultRows = ""
 foreach ($r in $results) {
@@ -152,12 +186,12 @@ foreach ($r in $results) {
         <td>$($r.P99_ms)</td>
         <td>$($r.P999_ms)</td>
       </tr>
- 
+
 "@
 }
- 
+
 $generated = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
- 
+
 $html = @"
 <!DOCTYPE html>
 <html lang="de">
@@ -212,6 +246,7 @@ $html = @"
   .chart { width: 100%; height: auto; }
   .chart-label { fill: var(--fg); font-size: 12px; font-family: monospace; }
   .chart-value { fill: var(--fg-dim); font-size: 11px; font-family: monospace; }
+  .chart-value-inside { fill: #ffffff; font-size: 11px; font-family: monospace; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
   th { background: var(--bg-row); color: var(--fg-dim); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
@@ -240,12 +275,12 @@ $html = @"
 </head>
 <body>
 <div class="container">
- 
+
   <h1>$Title</h1>
   <div class="subtitle">$($sysInfo.Hostname) &mdash; $($sysInfo.Hypervisor) &mdash; $($sysInfo.RAM_GB) GB RAM &mdash; $($sysInfo.CPU_LogicalCores) logical cores</div>
- 
+
 $warnBlock
- 
+
   <div class="kpis">
     <div class="kpi">
       <div class="kpi-label">Peak Read IOPS</div>
@@ -264,22 +299,22 @@ $warnBlock
       <div class="kpi-value">$([string]::Format('{0:N0}', [double]$peakWriteMBps))<span class="kpi-unit">MB/s</span></div>
     </div>
   </div>
- 
+
   <h2>Random IOPS (4K / 8K Tests)</h2>
   <div class="card">
     $chartIOPS
   </div>
- 
+
   <h2>Throughput</h2>
   <div class="card">
     $chartTput
   </div>
- 
+
   <h2>Latency P99</h2>
   <div class="card">
     $chartLat
   </div>
- 
+
   <h2>Detailed Results</h2>
   <div class="card">
     <table>
@@ -302,7 +337,7 @@ $warnBlock
 $resultRows      </tbody>
     </table>
   </div>
- 
+
   <h2>System Info</h2>
   <div class="card">
     <table class="sys-table">
@@ -310,21 +345,21 @@ $resultRows      </tbody>
 $sysRows      </tbody>
     </table>
   </div>
- 
+
   <footer>
     Generiert am $generated &middot; DiskSpd $($sysInfo.DiskSpdVersion) &middot; $($results.Count) Tests
   </footer>
- 
+
 </div>
 </body>
 </html>
 "@
- 
+
 $reportPath = Join-Path $ResultsDir "_Report.html"
 $html | Set-Content -Path $reportPath -Encoding UTF8
- 
+
 Write-Host "Report erstellt: $reportPath" -ForegroundColor Green
- 
+
 if ($OpenAfter) {
     Start-Process $reportPath
 }
