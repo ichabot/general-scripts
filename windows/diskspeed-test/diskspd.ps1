@@ -109,6 +109,113 @@ Write-Host "Output:    $OutputDir"
 Write-Host "DiskSpd:   $DiskSpd"
 Write-Host ""
 
+# --- Pre-Flight: VM-Konfiguration pruefen und loggen ---
+Write-Host "=== System-Info ===" -ForegroundColor Cyan
+
+$cs        = Get-CimInstance Win32_ComputerSystem
+$os        = Get-CimInstance Win32_OperatingSystem
+$cpu       = Get-CimInstance Win32_Processor | Select-Object -First 1
+$bios      = Get-CimInstance Win32_BIOS
+$ramGB     = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+$logCPUs   = [Environment]::ProcessorCount
+$physCPUs  = $cs.NumberOfProcessors
+$coresTot  = $cs.NumberOfLogicalProcessors
+$isVM      = $cs.Model -match 'VMware|Virtual|KVM|Hyper-V|Xen'
+$hypervisor = if ($cs.Model -match 'VMware') { 'VMware' }
+              elseif ($cs.Model -match 'Virtual') { 'Hyper-V' }
+              elseif ($bios.Manufacturer -match 'Xen') { 'Xen' }
+              elseif ($cs.Model -match 'KVM') { 'KVM' }
+              else { 'Physical/Unknown' }
+
+# Ziellaufwerk
+$targetRoot = (Split-Path $TargetPath -Qualifier)
+if (-not $targetRoot) { $targetRoot = (Split-Path (Resolve-Path -LiteralPath (Split-Path $TargetPath -Parent)).Path -Qualifier) }
+$vol = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$targetRoot'"
+$volFreeGB  = if ($vol) { [math]::Round($vol.FreeSpace / 1GB, 1) } else { 0 }
+$volTotalGB = if ($vol) { [math]::Round($vol.Size / 1GB, 1) } else { 0 }
+
+# Storage-Controller (VMware PVSCSI erkennen)
+$scsiCtrl = Get-CimInstance Win32_SCSIController | Select-Object -ExpandProperty Name
+$pvscsi   = $scsiCtrl | Where-Object { $_ -match 'VMware PVSCSI|Paravirtual' }
+
+# VMware Tools
+$vmtools = Get-Service -Name 'VMTools' -ErrorAction SilentlyContinue
+
+$sysInfo = [ordered]@{
+    Hostname        = $env:COMPUTERNAME
+    OS              = $os.Caption
+    Model           = $cs.Model
+    Manufacturer    = $cs.Manufacturer
+    Hypervisor      = $hypervisor
+    CPU             = $cpu.Name.Trim()
+    CPU_Sockets     = $physCPUs
+    CPU_LogicalCores = $coresTot
+    RAM_GB          = $ramGB
+    Volume          = $targetRoot
+    Volume_Total_GB = $volTotalGB
+    Volume_Free_GB  = $volFreeGB
+    SCSIController  = ($scsiCtrl -join '; ')
+    VMwareTools     = if ($vmtools) { $vmtools.Status } else { 'not installed' }
+    DiskSpdPath     = $DiskSpd
+    TestFile        = $TargetPath
+    TestFileSize_GB = $FileSizeGB
+    Threads         = $Threads
+    Duration_s      = $Duration
+    Warmup_s        = $Warmup
+    Timestamp       = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+}
+
+$sysInfo.GetEnumerator() | ForEach-Object {
+    Write-Host ("  {0,-18}: {1}" -f $_.Key, $_.Value)
+}
+Write-Host ""
+
+# --- Warnungen ---
+$warnings = @()
+
+if ($Threads -lt 4) {
+    $warnings += "Nur $Threads vCPU(s) - Bench wird CPU-bound bevor das SAN ausgelastet ist. Empfehlung: 8+ vCPUs fuer Storage-Tests."
+}
+if ($FileSizeGB -lt ($ramGB * 2)) {
+    $warnings += "Testfile ($FileSizeGB GB) ist kleiner als 2x RAM ($ramGB GB) - Caching kann Ergebnisse verfaelschen. Empfehlung: mindestens $([math]::Ceiling($ramGB * 2)) GB."
+}
+if ($FileSizeGB -lt 32) {
+    $warnings += "Testfile < 32 GB - typischer SAN-Controller-Cache (ME5024: 8 GB/Ctrl) kann Ergebnisse verfaelschen."
+}
+if ($volFreeGB -gt 0 -and ($volFreeGB - $FileSizeGB) -lt 5) {
+    $warnings += "Freier Speicher auf $targetRoot nur $volFreeGB GB - nach Testfile-Erstellung < 5 GB frei."
+}
+if ($isVM -and $hypervisor -eq 'VMware' -and -not $pvscsi) {
+    $warnings += "Kein VMware PVSCSI-Controller erkannt. LSI Logic SAS ist deutlich langsamer bei 4K random I/O. Empfehlung: Test-VMDK an PVSCSI-Controller haengen."
+}
+if ($isVM -and $hypervisor -eq 'VMware' -and $vmtools -and $vmtools.Status -ne 'Running') {
+    $warnings += "VMware Tools nicht 'Running' - Treiber/Timer koennen Messung beeinflussen."
+}
+if (-not $isVM) {
+    $warnings += "System sieht nicht nach VM aus (Model: $($cs.Model)). Script war fuer VMware-VM gedacht."
+}
+
+if ($warnings.Count -gt 0) {
+    Write-Host "=== WARNUNGEN ===" -ForegroundColor Yellow
+    foreach ($w in $warnings) { Write-Host "  ! $w" -ForegroundColor Yellow }
+    Write-Host ""
+    $resp = Read-Host "Trotzdem fortfahren? (j/N)"
+    if ($resp -notmatch '^[jJyY]') {
+        Write-Host "Abgebrochen." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host ""
+}
+
+# System-Info fuer Summary speichern
+$sysInfoPath = Join-Path $OutputDir "_SystemInfo.json"
+$sysInfo | ConvertTo-Json | Set-Content -Path $sysInfoPath -Encoding UTF8
+
+$warnPath = Join-Path $OutputDir "_Warnings.txt"
+if ($warnings.Count -gt 0) {
+    $warnings | Set-Content -Path $warnPath -Encoding UTF8
+}
+
 # --- Testmatrix ---
 $tests = @(
     @{ Name = "4K_RandRead_QD1";     Args = "-b4K  -r -w0   -o1  -t$Threads -d$Duration -W$Warmup -Sh -L" }
@@ -124,10 +231,40 @@ $tests = @(
 )
 
 # --- Testdatei vorbereiten ---
-Write-Host "Erstelle Testdatei ($FileSizeGB GB)..." -ForegroundColor Yellow
-$createArgs = "-c$($FileSizeGB)G `"$TargetPath`" -d1 -W0 -b1M -w100 -Sh"
-Start-Process -FilePath $DiskSpd -ArgumentList $createArgs -Wait -NoNewWindow | Out-Null
-Write-Host "Testdatei bereit." -ForegroundColor Green
+$needed = [int64]$FileSizeGB * 1GB
+
+if (Test-Path $TargetPath) {
+    $existing = (Get-Item $TargetPath).Length
+    if ($existing -eq $needed) {
+        Write-Host "Testdatei existiert bereits mit korrekter Groesse ($FileSizeGB GB)." -ForegroundColor Green
+    } else {
+        Write-Host "Testdatei existiert mit falscher Groesse, wird neu erstellt..." -ForegroundColor Yellow
+        Remove-Item $TargetPath -Force
+    }
+}
+
+if (-not (Test-Path $TargetPath)) {
+    Write-Host "Erstelle Testdatei ($FileSizeGB GB) via fsutil..." -ForegroundColor Yellow
+    # fsutil ist robuster als diskspd -c, gerade bei -Sh
+    $fsutilOutput = & fsutil file createnew $TargetPath $needed 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host $fsutilOutput -ForegroundColor Red
+        throw "fsutil konnte Testdatei nicht erstellen. Pfad pruefen, als Admin ausfuehren, Laufwerk-Space pruefen."
+    }
+    # Optional: mit Zufallsdaten beschreiben, damit Dedup/Compression auf SAN nicht reinpfuschen
+    Write-Host "Fuelle Testdatei mit Daten (damit SAN-Dedup/Compression neutralisiert)..." -ForegroundColor Yellow
+    $fillArgs = @("-d30", "-b1M", "-w100", "-t2", "-o4", $TargetPath)
+    $fillOut = & $DiskSpd $fillArgs 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host $fillOut -ForegroundColor Red
+        throw "Fill-Step fehlgeschlagen."
+    }
+}
+
+if (-not (Test-Path $TargetPath)) {
+    throw "Testdatei nach Erstellung nicht vorhanden: $TargetPath"
+}
+Write-Host "Testdatei bereit: $TargetPath ($([math]::Round((Get-Item $TargetPath).Length/1GB,1)) GB)" -ForegroundColor Green
 Write-Host ""
 
 # --- Testdurchlauf ---
