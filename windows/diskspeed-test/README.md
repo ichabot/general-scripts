@@ -10,7 +10,7 @@ Built for SAN/SSD benchmarking on virtualized infrastructure (Dell ME5024, Pure,
 |------|-------------|
 | `Invoke-StoragePerfTest.ps1` | DiskSpd wrapper — runs full I/O test matrix, collects IOPS/throughput/latency |
 | `New-StoragePerfReport.ps1` | HTML report generator — reads results and builds a dark-themed standalone report |
-| `diskspd-2.2.zip` / `.tar.gz` / `DiskSpd.ZIP` | Bundled DiskSpd binaries (Microsoft, v2.2) |
+| `diskspd-2.2.zip` / `.tar.gz` / `DiskSpd.ZIP` | Bundled DiskSpd binaries and original Source Code in case Microsoft kills the Project (Microsoft, v2.2) |
 
 ## Test Matrix
 
