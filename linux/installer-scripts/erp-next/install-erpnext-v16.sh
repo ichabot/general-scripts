@@ -146,8 +146,8 @@ APPS_DEFAULT[hrms]="y"
 
 APPS_URL[helpdesk]="helpdesk"
 APPS_NAME[helpdesk]="helpdesk"
-APPS_BRANCH[helpdesk]="version-16"
-APPS_DESC[helpdesk]="Ticketsystem / Customer Support (offiziell Frappe)"
+APPS_BRANCH[helpdesk]="main"
+APPS_DESC[helpdesk]="Ticketsystem / Customer Support (offiziell Frappe, rolling main - kein version-16 branch)"
 APPS_DEFAULT[helpdesk]="n"
 
 APPS_URL[lms]="lms"
@@ -158,8 +158,8 @@ APPS_DEFAULT[lms]="n"
 
 APPS_URL[builder]="builder"
 APPS_NAME[builder]="builder"
-APPS_BRANCH[builder]="main"
-APPS_DESC[builder]="Visueller Website-Builder (offiziell Frappe)"
+APPS_BRANCH[builder]="develop"
+APPS_DESC[builder]="Visueller Website-Builder (offiziell Frappe, aktuell nur develop-branch verfügbar)"
 APPS_DEFAULT[builder]="n"
 
 APPS_URL[crm]="crm"
@@ -188,8 +188,8 @@ APPS_DEFAULT[gameplan]="n"
 
 APPS_URL[wiki]="wiki"
 APPS_NAME[wiki]="wiki"
-APPS_BRANCH[wiki]="master"
-APPS_DESC[wiki]="Internes Wiki (offiziell Frappe)"
+APPS_BRANCH[wiki]="develop"
+APPS_DESC[wiki]="Internes Wiki (offiziell Frappe, aktuell nur develop-branch verfügbar)"
 APPS_DEFAULT[wiki]="n"
 
 APPS_URL[print_designer]="print_designer"
@@ -676,9 +676,17 @@ fi
 # Im Production-Modus alles nochmal sauber durchstarten
 if [[ "$SETUP_MODE" == "prod" ]]; then
     step "7c/9  Production-Stack neu starten (nach App-Install)"
-    supervisorctl restart all
-    sleep 2
-    supervisorctl status || true
+    # Guard: nur wenn supervisor-config wirklich da ist (vermeidet "no such group" ERROR)
+    if [[ -f /etc/supervisor/conf.d/frappe-bench.conf ]] && command -v supervisorctl >/dev/null 2>&1; then
+        supervisorctl reread >/dev/null 2>&1 || true
+        supervisorctl update >/dev/null 2>&1 || true
+        supervisorctl restart all
+        sleep 2
+        supervisorctl status || true
+    else
+        echo "[!] supervisor-config /etc/supervisor/conf.d/frappe-bench.conf fehlt - skip restart"
+        echo "    Manuell nachholen: sudo bench setup production ${FRAPPE_USER} --yes && sudo supervisorctl restart all"
+    fi
 fi
 
 # =============================================================================
