@@ -308,8 +308,9 @@ APPS_REQUIRES[erpnext_datev]="erpnext_germany"
 APPS_URL[banking]="https://github.com/alyf-de/banking"
 APPS_NAME[banking]="banking"
 APPS_BRANCH[banking]="version-16"
-APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de, version-16 verfügbar seit ~05/2026)"
+APPS_DESC[banking]="Bank-Import / EBICS / Reconciliation (alyf.de, version-16 verfügbar seit ~05/2026, braucht hrms wegen Expense-Claim custom fields)"
 APPS_DEFAULT[banking]="n"
+APPS_REQUIRES[banking]="hrms"
 
 # ---------- App-Auswahl ----------
 echo
@@ -736,8 +737,8 @@ install_app() {
 install_app erpnext
 INSTALL_EOF
 
-# Install-Reihenfolge: erpnext_germany zuerst, dann Apps die darauf aufbauen
-INSTALL_ORDER=(erpnext_germany banking eu_einvoice erpnext_datev pdf_on_submit hrms helpdesk lms builder crm drive insights gameplan wiki print_designer payments)
+# Install-Reihenfolge: dependencies zuerst (hrms vor banking wegen Expense Claim, erpnext_germany vor datev/einvoice, telephony vor helpdesk)
+INSTALL_ORDER=(erpnext_germany payments hrms telephony banking eu_einvoice erpnext_datev pdf_on_submit helpdesk lms builder crm drive insights gameplan wiki print_designer)
 for k in "${INSTALL_ORDER[@]}"; do
     [[ ${APP_SELECTED[$k]:-0} -eq 1 ]] || continue
     echo "install_app ${APPS_NAME[$k]}" >> "$INSTALL_SCRIPT"
