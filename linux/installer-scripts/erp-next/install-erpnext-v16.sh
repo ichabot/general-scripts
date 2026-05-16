@@ -92,6 +92,80 @@ fi
 command -v openssl &>/dev/null || apt-get install -y openssl
 command -v git &>/dev/null || apt-get install -y git
 
+# ---------- Preflight: RAM / Swap / Disk ----------
+# Schwellen (in MB / GB)
+RAM_REC_MB=4096          # empfohlen >= 4 GB
+RAM_HARD_MB=2048         # hard-fail unter 2 GB
+SWAP_REC_MB=2048         # empfohlen >= 2 GB wenn RAM < 8 GB
+DISK_REC_GB=15           # empfohlen >= 15 GB frei (/home bzw. $HOME-Partition)
+DISK_HARD_GB=8           # hard-fail unter 8 GB
+
+RAM_TOTAL_MB=$(awk '/^MemTotal:/ {printf "%d", $2/1024}' /proc/meminfo)
+SWAP_TOTAL_MB=$(awk '/^SwapTotal:/ {printf "%d", $2/1024}' /proc/meminfo)
+# Disk-Check auf /home (Frappe-Bench landet dort); fallback /
+DISK_TARGET="/home"
+[[ -d "$DISK_TARGET" ]] || DISK_TARGET="/"
+DISK_FREE_GB=$(df -BG --output=avail "$DISK_TARGET" | tail -1 | tr -dc '0-9')
+
+step "Preflight: System-Ressourcen prüfen"
+cat <<EOF
+  RAM total       : ${RAM_TOTAL_MB} MB  (empfohlen >= ${RAM_REC_MB} MB, hard-min ${RAM_HARD_MB} MB)
+  Swap total      : ${SWAP_TOTAL_MB} MB  (empfohlen >= ${SWAP_REC_MB} MB wenn RAM < 8 GB)
+  Disk frei (${DISK_TARGET}) : ${DISK_FREE_GB} GB  (empfohlen >= ${DISK_REC_GB} GB, hard-min ${DISK_HARD_GB} GB)
+EOF
+
+PREFLIGHT_WARN=0
+PREFLIGHT_HARD=0
+
+# RAM
+if (( RAM_TOTAL_MB < RAM_HARD_MB )); then
+    warn "RAM ${RAM_TOTAL_MB} MB < hard-min ${RAM_HARD_MB} MB - vite/rollup-Builds werden mit hoher Wahrscheinlichkeit OOM-killed (exit 137)."
+    PREFLIGHT_HARD=1
+elif (( RAM_TOTAL_MB < RAM_REC_MB )); then
+    warn "RAM ${RAM_TOTAL_MB} MB unter Empfehlung ${RAM_REC_MB} MB - Frontend-Builds (lms/builder/insights) können OOM-killed werden ohne ausreichend Swap."
+    PREFLIGHT_WARN=1
+else
+    ok "RAM ok"
+fi
+
+# Swap (nur warnen wenn RAM < 8 GB)
+if (( RAM_TOTAL_MB < 8192 )) && (( SWAP_TOTAL_MB < SWAP_REC_MB )); then
+    warn "Swap ${SWAP_TOTAL_MB} MB < Empfehlung ${SWAP_REC_MB} MB bei knappem RAM."
+    cat <<'SWAP_HINT'
+    Swap einrichten (4 GB, dauerhaft):
+      sudo fallocate -l 4G /swapfile
+      sudo chmod 600 /swapfile
+      sudo mkswap /swapfile
+      sudo swapon /swapfile
+      echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+SWAP_HINT
+    PREFLIGHT_WARN=1
+else
+    ok "Swap ok"
+fi
+
+# Disk
+if (( DISK_FREE_GB < DISK_HARD_GB )); then
+    warn "Disk frei ${DISK_FREE_GB} GB < hard-min ${DISK_HARD_GB} GB - Bench-Install (node_modules, MO-Files, assets) wird voraussichtlich fehlschlagen."
+    PREFLIGHT_HARD=1
+elif (( DISK_FREE_GB < DISK_REC_GB )); then
+    warn "Disk frei ${DISK_FREE_GB} GB unter Empfehlung ${DISK_REC_GB} GB."
+    PREFLIGHT_WARN=1
+else
+    ok "Disk ok"
+fi
+
+if (( PREFLIGHT_HARD == 1 )); then
+    echo
+    warn "HARD-LIMIT unterschritten. Install wird sehr wahrscheinlich fehlschlagen."
+    read -rp "Wirklich TROTZDEM fortfahren? [y/N]: " _cont
+    [[ "${_cont,,}" == "y" ]] || die "Abgebrochen wegen Preflight-Hard-Limit."
+elif (( PREFLIGHT_WARN == 1 )); then
+    echo
+    read -rp "Ressourcen unter Empfehlung - trotzdem fortfahren? [Y/n]: " _cont
+    [[ "${_cont,,}" == "n" ]] && die "Abgebrochen."
+fi
+
 step "ERPNext v16 Installer - interaktive Konfiguration"
 
 # ---------- Setup-Modus ----------
@@ -128,8 +202,8 @@ ADMIN_PW="$(prompt_password "Administrator-Passwort für Site '${SITE_NAME}'")"
 
 # ---------- App-Katalog ----------
 # Format: name | git-url | app-name | branch | description | default
-declare -A APPS_URL APPS_NAME APPS_BRANCH APPS_DESC APPS_DEFAULT
-APP_ORDER=(payments hrms helpdesk lms builder crm drive insights gameplan wiki print_designer erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
+declare -A APPS_URL APPS_NAME APPS_BRANCH APPS_DESC APPS_DEFAULT APPS_REQUIRES
+APP_ORDER=(payments hrms telephony helpdesk lms builder crm drive insights gameplan wiki print_designer erpnext_germany eu_einvoice pdf_on_submit erpnext_datev banking)
 
 # Offizielle Frappe-Apps (Kurzname als URL ist ok für 'bench get-app')
 APPS_URL[payments]="payments"
@@ -144,11 +218,18 @@ APPS_BRANCH[hrms]="version-16"
 APPS_DESC[hrms]="HR & Payroll Modul (offiziell Frappe, ersetzt time_capture)"
 APPS_DEFAULT[hrms]="y"
 
+APPS_URL[telephony]="telephony"
+APPS_NAME[telephony]="telephony"
+APPS_BRANCH[telephony]="develop"
+APPS_DESC[telephony]="Telephony-Modul (offiziell Frappe, Voraussetzung für helpdesk; nur develop-branch)"
+APPS_DEFAULT[telephony]="n"
+
 APPS_URL[helpdesk]="helpdesk"
 APPS_NAME[helpdesk]="helpdesk"
 APPS_BRANCH[helpdesk]="main"
-APPS_DESC[helpdesk]="Ticketsystem / Customer Support (offiziell Frappe, rolling main - kein version-16 branch)"
+APPS_DESC[helpdesk]="Ticketsystem / Customer Support (offiziell Frappe, rolling main - kein version-16 branch, braucht telephony)"
 APPS_DEFAULT[helpdesk]="n"
+APPS_REQUIRES[helpdesk]="telephony"
 
 APPS_URL[lms]="lms"
 APPS_NAME[lms]="lms"
@@ -222,6 +303,7 @@ APPS_NAME[erpnext_datev]="erpnext_datev"
 APPS_BRANCH[erpnext_datev]="version-16"
 APPS_DESC[erpnext_datev]="DATEV-Export für Steuerberater (alyf.de, braucht erpnext_germany)"
 APPS_DEFAULT[erpnext_datev]="n"
+APPS_REQUIRES[erpnext_datev]="erpnext_germany"
 
 APPS_URL[banking]="https://github.com/alyf-de/banking"
 APPS_NAME[banking]="banking"
@@ -248,11 +330,29 @@ for k in "${APP_ORDER[@]}"; do
     fi
 done
 
-# Abhängigkeiten: erpnext_datev braucht erpnext_germany
-if [[ ${APP_SELECTED[erpnext_datev]:-0} -eq 1 && ${APP_SELECTED[erpnext_germany]:-0} -eq 0 ]]; then
-    warn "erpnext_datev ausgewählt -> ziehe erpnext_germany als Abhängigkeit mit rein."
-    APP_SELECTED[erpnext_germany]=1
-fi
+# Abhängigkeiten generisch auflösen (APPS_REQUIRES)
+# Mehrere deps pro app: leerzeichen-getrennt in APPS_REQUIRES[app]="a b c"
+_resolve_deps() {
+    local changed=1 pass=0
+    while (( changed == 1 )); do
+        changed=0
+        pass=$((pass+1))
+        (( pass > 10 )) && { warn "dep-resolver: max passes erreicht, breche ab"; break; }
+        for k in "${APP_ORDER[@]}"; do
+            [[ ${APP_SELECTED[$k]:-0} -eq 1 ]] || continue
+            local deps="${APPS_REQUIRES[$k]:-}"
+            [[ -z "$deps" ]] && continue
+            for dep in $deps; do
+                if [[ ${APP_SELECTED[$dep]:-0} -eq 0 ]]; then
+                    warn "${k} braucht ${dep} -> ziehe ${dep} als Abhängigkeit mit rein."
+                    APP_SELECTED[$dep]=1
+                    changed=1
+                fi
+            done
+        done
+    done
+}
+_resolve_deps
 
 # ---------- Pre-flight: Branch-Check für externe Repos ----------
 echo
